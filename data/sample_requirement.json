@@ -1,0 +1,49 @@
+{
+  "requirement_id": "BR-001",
+  "title": "Transfer money to an existing UK beneficiary",
+  "domain": "Retail Banking",
+  "feature": "Digital Payments",
+  "user_story": "As an online banking customer, I want to transfer money from my current account to an existing UK beneficiary so that I can make a payment securely.",
+  "acceptance_criteria": [
+    {
+      "criterion_id": "AC-001",
+      "description": "The customer must be logged in and have an active current account."
+    },
+    {
+      "criterion_id": "AC-002",
+      "description": "The customer must be able to select an existing UK beneficiary."
+    },
+    {
+      "criterion_id": "AC-003",
+      "description": "The customer must enter a transfer amount and payment reference before submitting the payment."
+    },
+    {
+      "criterion_id": "AC-004",
+      "description": "The maximum daily transfer limit is £10,000."
+    },
+    {
+      "criterion_id": "AC-005",
+      "description": "The transfer must be prevented when the customer has insufficient available funds."
+    },
+    {
+      "criterion_id": "AC-006",
+      "description": "After a successful transfer, the available balance must be updated and a confirmation containing a unique transaction reference must be displayed."
+    },
+    {
+      "criterion_id": "AC-007",
+      "description": "If a transfer fails, an appropriate error message must be displayed and the customer's account must not be debited."
+    }
+  ],
+  "business_context": [
+    "Transfers are made in GBP.",
+    "The beneficiary already exists in the customer's beneficiary list.",
+    "The feature is available through online banking.",
+    "The POC is concerned with the business flow, not the underlying payment-network implementation."
+  ],
+  "known_risks": [
+    "A duplicate submission could create multiple payments.",
+    "A failed transfer could incorrectly debit the customer.",
+    "An incorrect balance update could mislead the customer.",
+    "A misleading confirmation could cause the customer to believe that a failed payment succeeded."
+  ]
+}

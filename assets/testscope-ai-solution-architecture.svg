@@ -1,0 +1,192 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1600" height="1200" viewBox="0 0 1600 1200" role="img" aria-labelledby="title desc">
+  <title id="title">TestScope AI UAT Test Design Agent Solution Architecture</title>
+  <desc id="desc">A self-explanatory architecture showing requirement input, workflow orchestration, requirement analysis, human review, test generation, validation, coverage, editing and export.</desc>
+  <defs>
+    <filter id="shadow" x="-20%" y="-20%" width="140%" height="140%">
+      <feDropShadow dx="0" dy="5" stdDeviation="7" flood-color="#0B132B" flood-opacity="0.12"/>
+    </filter>
+    <marker id="arrow-navy" markerWidth="12" markerHeight="12" refX="10" refY="6" orient="auto">
+      <path d="M0,0 L12,6 L0,12 Z" fill="#243B64"/>
+    </marker>
+    <marker id="arrow-purple" markerWidth="12" markerHeight="12" refX="10" refY="6" orient="auto">
+      <path d="M0,0 L12,6 L0,12 Z" fill="#6D5BD0"/>
+    </marker>
+    <marker id="arrow-teal" markerWidth="12" markerHeight="12" refX="10" refY="6" orient="auto">
+      <path d="M0,0 L12,6 L0,12 Z" fill="#168C88"/>
+    </marker>
+    <style>
+      .title { font: 700 38px 'Segoe UI', Arial, sans-serif; fill: #FFFFFF; }
+      .subtitle { font: 400 18px 'Segoe UI', Arial, sans-serif; fill: #DDE7F5; }
+      .section { font: 700 16px 'Segoe UI', Arial, sans-serif; letter-spacing: 1.4px; fill: #52637A; }
+      .box-title { font: 700 22px 'Segoe UI', Arial, sans-serif; fill: #10233F; }
+      .box-text { font: 400 16px 'Segoe UI', Arial, sans-serif; fill: #42536A; }
+      .small-title { font: 700 17px 'Segoe UI', Arial, sans-serif; fill: #10233F; }
+      .small-text { font: 400 14px 'Segoe UI', Arial, sans-serif; fill: #52637A; }
+      .white-title { font: 700 21px 'Segoe UI', Arial, sans-serif; fill: #FFFFFF; }
+      .white-text { font: 400 15px 'Segoe UI', Arial, sans-serif; fill: #F3F0FF; }
+      .step { font: 700 16px 'Segoe UI', Arial, sans-serif; fill: #FFFFFF; text-anchor: middle; dominant-baseline: middle; }
+      .arrow-label { font: 600 13px 'Segoe UI', Arial, sans-serif; fill: #52637A; }
+      .pill { font: 600 13px 'Segoe UI', Arial, sans-serif; }
+    </style>
+  </defs>
+
+  <rect width="1600" height="1200" fill="#F4F7FB"/>
+  <rect x="0" y="0" width="1600" height="112" fill="#10233F"/>
+  <text x="70" y="50" class="title">TestScope AI — UAT Test Design Agent</text>
+  <text x="70" y="82" class="subtitle">Bounded two-stage AI workflow with human approval, deterministic validation and traceable test output</text>
+
+  <rect x="1080" y="30" width="135" height="32" rx="16" fill="#EEEAFE"/>
+  <circle cx="1098" cy="46" r="6" fill="#6D5BD0"/>
+  <text x="1112" y="51" class="pill" fill="#5143A6">AI reasoning</text>
+  <rect x="1228" y="30" width="155" height="32" rx="16" fill="#FFF1DE"/>
+  <circle cx="1246" cy="46" r="6" fill="#E58A19"/>
+  <text x="1260" y="51" class="pill" fill="#A95E08">Human decision</text>
+  <rect x="1395" y="30" width="150" height="32" rx="16" fill="#DDF4F1"/>
+  <circle cx="1413" cy="46" r="6" fill="#168C88"/>
+  <text x="1427" y="51" class="pill" fill="#0D6D69">Python checks</text>
+
+  <text x="70" y="150" class="section">1 — USER EXPERIENCE LAYER</text>
+
+  <rect x="70" y="172" width="250" height="142" rx="18" fill="#FFFFFF" stroke="#D7E0EC" filter="url(#shadow)"/>
+  <circle cx="112" cy="216" r="24" fill="#E8EEF7"/>
+  <circle cx="112" cy="209" r="8" fill="#243B64"/>
+  <path d="M96 235 C99 220,125 220,128 235" fill="#243B64"/>
+  <text x="150" y="211" class="box-title">Tester / BA</text>
+  <text x="150" y="238" class="box-text">Supplies requirement</text>
+  <text x="150" y="262" class="box-text">and reviews decisions</text>
+  <text x="92" y="294" class="small-text">Human remains accountable</text>
+
+  <rect x="365" y="172" width="1165" height="142" rx="18" fill="#FFFFFF" stroke="#C9D6E6" filter="url(#shadow)"/>
+  <text x="398" y="204" class="box-title">Streamlit Application</text>
+  <text x="398" y="228" class="small-text">One guided workspace for input, clarification, review and download</text>
+
+  <rect x="398" y="247" width="310" height="48" rx="10" fill="#EAF0F8"/>
+  <text x="418" y="268" class="small-title">Requirement input</text>
+  <text x="418" y="287" class="small-text">Story, criteria and context</text>
+
+  <rect x="733" y="247" width="350" height="48" rx="10" fill="#FFF1DE"/>
+  <text x="753" y="268" class="small-title">Clarification workspace</text>
+  <text x="753" y="287" class="small-text">Answer questions or approve assumptions</text>
+
+  <rect x="1108" y="247" width="389" height="48" rx="10" fill="#DDF4F1"/>
+  <text x="1128" y="268" class="small-title">Editable test pack &amp; coverage</text>
+  <text x="1128" y="287" class="small-text">Review, correct and export results</text>
+
+  <line x1="320" y1="243" x2="365" y2="243" stroke="#243B64" stroke-width="3" marker-end="url(#arrow-navy)"/>
+  <circle cx="342" cy="219" r="15" fill="#243B64"/>
+  <text x="342" y="220" class="step">1</text>
+
+  <text x="70" y="358" class="section">2 — TRUSTED APPLICATION CONTROL</text>
+
+  <rect x="180" y="380" width="1080" height="122" rx="18" fill="#FFFFFF" stroke="#B9CADF" stroke-width="2" filter="url(#shadow)"/>
+  <rect x="180" y="380" width="18" height="122" rx="9" fill="#243B64"/>
+  <text x="228" y="419" class="box-title">Workflow Controller</text>
+  <text x="228" y="448" class="box-text">Controls stage order • validates state transitions • preserves previous results • handles errors and retries</text>
+  <rect x="228" y="466" width="164" height="24" rx="12" fill="#EAF0F8"/>
+  <text x="245" y="483" class="pill" fill="#243B64">Model cannot bypass it</text>
+
+  <rect x="1300" y="380" width="230" height="122" rx="18" fill="#EAF0F8" stroke="#B9CADF"/>
+  <text x="1325" y="416" class="small-title">Session state</text>
+  <text x="1325" y="442" class="small-text">Input • analysis</text>
+  <text x="1325" y="464" class="small-text">answers • test pack</text>
+  <text x="1325" y="486" class="small-text">warnings • safe retry</text>
+
+  <path d="M553 314 L553 380" fill="none" stroke="#243B64" stroke-width="3" marker-end="url(#arrow-navy)"/>
+  <circle cx="578" cy="347" r="15" fill="#243B64"/>
+  <text x="578" y="348" class="step">2</text>
+  <line x1="1260" y1="441" x2="1300" y2="441" stroke="#243B64" stroke-width="3" marker-end="url(#arrow-navy)"/>
+
+  <text x="70" y="550" class="section">3 — AGENTIC INTELLIGENCE WITH HUMAN-IN-THE-LOOP</text>
+  <rect x="70" y="570" width="1460" height="310" rx="24" fill="#F9F8FF" stroke="#CFC7F5" stroke-width="2"/>
+
+  <rect x="120" y="610" width="390" height="178" rx="18" fill="#6D5BD0" filter="url(#shadow)"/>
+  <circle cx="154" cy="642" r="17" fill="#FFFFFF" fill-opacity="0.22"/>
+  <text x="154" y="643" class="step">A</text>
+  <text x="185" y="648" class="white-title">Requirement Analysis</text>
+  <text x="150" y="682" class="white-text">Extract explicit business rules</text>
+  <text x="150" y="708" class="white-text">Identify ambiguities and risks</text>
+  <text x="150" y="734" class="white-text">Generate clarification questions</text>
+  <text x="150" y="760" class="white-text">Propose visible assumptions</text>
+
+  <rect x="605" y="610" width="390" height="178" rx="18" fill="#FFF7EB" stroke="#E9A548" stroke-width="2" filter="url(#shadow)"/>
+  <circle cx="639" cy="642" r="17" fill="#E58A19"/>
+  <text x="639" y="643" class="step">H</text>
+  <text x="670" y="648" class="box-title">Human Review Gate</text>
+  <text x="635" y="682" class="box-text">Answer stakeholder questions</text>
+  <text x="635" y="708" class="box-text">Approve or reject assumptions</text>
+  <text x="635" y="734" class="box-text">Leave unknowns unresolved</text>
+  <text x="635" y="760" class="box-text">No silent business decisions</text>
+
+  <rect x="1090" y="610" width="390" height="178" rx="18" fill="#6D5BD0" filter="url(#shadow)"/>
+  <circle cx="1124" cy="642" r="17" fill="#FFFFFF" fill-opacity="0.22"/>
+  <text x="1124" y="643" class="step">B</text>
+  <text x="1155" y="648" class="white-title">UAT Test Generation</text>
+  <text x="1120" y="682" class="white-text">Positive and negative scenarios</text>
+  <text x="1120" y="708" class="white-text">Boundary and end-to-end tests</text>
+  <text x="1120" y="734" class="white-text">Risk, priority and traceability</text>
+  <text x="1120" y="760" class="white-text">Mark unresolved dependencies</text>
+
+  <line x1="510" y1="699" x2="605" y2="699" stroke="#6D5BD0" stroke-width="4" marker-end="url(#arrow-purple)"/>
+  <circle cx="556" cy="671" r="15" fill="#6D5BD0"/>
+  <text x="556" y="672" class="step">4</text>
+  <line x1="995" y1="699" x2="1090" y2="699" stroke="#E58A19" stroke-width="4" marker-end="url(#arrow-navy)"/>
+  <circle cx="1041" cy="671" r="15" fill="#E58A19"/>
+  <text x="1041" y="672" class="step">5</text>
+
+  <rect x="390" y="814" width="820" height="42" rx="21" fill="#EEEAFE"/>
+  <text x="800" y="840" text-anchor="middle" class="small-title" fill="#5143A6">OpenAI Agents SDK • Configurable model • Typed Pydantic outputs • Stage-specific prompts</text>
+
+  <path d="M570 502 C570 540,315 535,315 610" fill="none" stroke="#6D5BD0" stroke-width="3" marker-end="url(#arrow-purple)"/>
+  <circle cx="434" cy="535" r="15" fill="#6D5BD0"/>
+  <text x="434" y="536" class="step">3</text>
+
+  <text x="70" y="928" class="section">4 — QUALITY, REVIEW AND DELIVERY</text>
+
+  <rect x="70" y="950" width="350" height="142" rx="18" fill="#FFFFFF" stroke="#54B7B2" stroke-width="2" filter="url(#shadow)"/>
+  <text x="102" y="988" class="box-title">Schema Validation</text>
+  <text x="102" y="1017" class="box-text">Required fields and types</text>
+  <text x="102" y="1043" class="box-text">Controlled enum values</text>
+  <text x="102" y="1069" class="box-text">Valid IDs and references</text>
+
+  <rect x="470" y="950" width="410" height="142" rx="18" fill="#FFFFFF" stroke="#54B7B2" stroke-width="2" filter="url(#shadow)"/>
+  <text x="502" y="988" class="box-title">Coverage &amp; Quality Engine</text>
+  <text x="502" y="1017" class="box-text">Acceptance-criteria mapping</text>
+  <text x="502" y="1043" class="box-text">Boundary and negative checks</text>
+  <text x="502" y="1069" class="box-text">Errors, warnings and coverage %</text>
+
+  <rect x="930" y="950" width="360" height="142" rx="18" fill="#FFFFFF" stroke="#54B7B2" stroke-width="2" filter="url(#shadow)"/>
+  <text x="962" y="988" class="box-title">Reviewable Test Pack</text>
+  <text x="962" y="1017" class="box-text">Editable structured test cases</text>
+  <text x="962" y="1043" class="box-text">Risk, priority and traceability</text>
+  <text x="962" y="1069" class="box-text">Visible unresolved questions</text>
+
+  <rect x="1340" y="950" width="190" height="142" rx="18" fill="#168C88" filter="url(#shadow)"/>
+  <text x="1435" y="990" text-anchor="middle" class="white-title">Export</text>
+  <text x="1435" y="1022" text-anchor="middle" class="white-text">CSV — Version 1</text>
+  <text x="1435" y="1048" text-anchor="middle" class="white-text">Excel — Later</text>
+  <text x="1435" y="1076" text-anchor="middle" class="white-text">Reviewed data only</text>
+
+  <path d="M1285 788 C1285 910,245 875,245 950" fill="none" stroke="#168C88" stroke-width="3" marker-end="url(#arrow-teal)"/>
+  <circle cx="788" cy="893" r="15" fill="#168C88"/>
+  <text x="788" y="894" class="step">6</text>
+  <line x1="420" y1="1021" x2="470" y2="1021" stroke="#168C88" stroke-width="3" marker-end="url(#arrow-teal)"/>
+  <line x1="880" y1="1021" x2="930" y2="1021" stroke="#168C88" stroke-width="3" marker-end="url(#arrow-teal)"/>
+  <circle cx="905" cy="993" r="15" fill="#168C88"/>
+  <text x="905" y="994" class="step">7</text>
+  <line x1="1290" y1="1021" x2="1340" y2="1021" stroke="#168C88" stroke-width="3" marker-end="url(#arrow-teal)"/>
+  <circle cx="1315" cy="993" r="15" fill="#168C88"/>
+  <text x="1315" y="994" class="step">8</text>
+
+  <rect x="70" y="1132" width="1460" height="46" rx="15" fill="#10233F"/>
+  <text x="100" y="1161" class="subtitle">Supporting controls:</text>
+  <circle cx="270" cy="1155" r="4" fill="#65D0C8"/>
+  <text x="290" y="1161" class="subtitle">Secure API key management</text>
+  <circle cx="540" cy="1155" r="4" fill="#65D0C8"/>
+  <text x="560" y="1161" class="subtitle">Synthetic POC data</text>
+  <circle cx="735" cy="1155" r="4" fill="#65D0C8"/>
+  <text x="755" y="1161" class="subtitle">Safe error handling</text>
+  <circle cx="945" cy="1155" r="4" fill="#65D0C8"/>
+  <text x="965" y="1161" class="subtitle">Tracing and evaluation</text>
+  <circle cx="1195" cy="1155" r="4" fill="#65D0C8"/>
+  <text x="1215" y="1161" class="subtitle">No database in Version 1</text>
+</svg>
