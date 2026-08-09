@@ -10,6 +10,7 @@ from src.schemas import (
     BusinessRisk,
     BusinessRule,
     CoverageSummary,
+    GeneratedTestCases,
     Priority,
     RequirementAnalysis,
     RequirementInput,
@@ -202,3 +203,16 @@ def test_complete_pack_round_trips_through_json() -> None:
 
     assert restored == original
     assert restored.test_cases[0].test_type is UATTestType.POSITIVE
+
+def test_generated_test_cases_accepts_valid_test_case() -> None:
+    generated = GeneratedTestCases(
+        test_cases=[valid_test_case()]
+    )
+
+    assert len(generated.test_cases) == 1
+    assert generated.test_cases[0].test_id == "UAT-001"
+
+
+def test_generated_test_cases_requires_at_least_one_test() -> None:
+    with pytest.raises(ValidationError):
+        GeneratedTestCases(test_cases=[])
