@@ -179,6 +179,10 @@ class TestCase(StrictModel):
     assumption_ids: list[Identifier] = Field(default_factory=list)
     status: TestStatus
 
+class GeneratedTestCases(StrictModel):
+    """Structured test cases returned by the AI generator."""
+
+    test_cases: list[TestCase] = Field(min_length=1)
 
 class CoverageSummary(StrictModel):
     """Deterministically calculated traceability and quality summary."""

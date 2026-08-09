@@ -6,13 +6,19 @@ from pathlib import Path
 from dotenv import load_dotenv
 from ollama import ResponseError, chat
 from pydantic import ValidationError
-
-from src.schemas import RequirementAnalysis, RequirementInput
+from src.schemas import (
+    GeneratedTestCases,
+    RequirementAnalysis,
+    RequirementInput,
+)
 
 
 PROJECT_ROOT = Path(__file__).resolve().parent.parent
 ANALYSIS_PROMPT_PATH = (
     PROJECT_ROOT / "prompts" / "analyse_requirement.md"
+)
+TEST_GENERATION_PROMPT_PATH = (
+    PROJECT_ROOT / "prompts" / "generate_uat_tests.md"
 )
 
 
@@ -36,6 +42,26 @@ def load_analysis_prompt() -> str:
     if not prompt:
         raise AgentServiceError(
             "The requirement-analysis prompt is empty."
+        )
+
+    return prompt
+
+def load_test_generation_prompt() -> str:
+    """Load the UAT test-generation instructions."""
+
+    if not TEST_GENERATION_PROMPT_PATH.exists():
+        raise AgentServiceError(
+            "The UAT test-generation prompt was not found at "
+            f"{TEST_GENERATION_PROMPT_PATH}."
+        )
+
+    prompt = TEST_GENERATION_PROMPT_PATH.read_text(
+        encoding="utf-8"
+    ).strip()
+
+    if not prompt:
+        raise AgentServiceError(
+            "The UAT test-generation prompt is empty."
         )
 
     return prompt
@@ -110,6 +136,67 @@ def analyse_requirement(
         f"{requirement_json}"
     )
 
+def request_structured_test_cases(
+    user_message: str,
+) -> GeneratedTestCases:
+    """Request and validate structured UAT test cases from Ollama."""
+
+    try:
+        response = chat(
+            model=get_ollama_model(),
+            messages=[
+                {
+                    "role": "system",
+                    "content": load_test_generation_prompt(),
+                },
+                {
+                    "role": "user",
+                    "content": user_message,
+                },
+            ],
+            format=GeneratedTestCases.model_json_schema(),
+            options={"temperature": 0},
+            think=False,
+        )
+
+        response_content = response.message.content
+
+        if not response_content:
+            raise AgentServiceError(
+                "The local model returned an empty test-case response."
+            )
+
+        return GeneratedTestCases.model_validate_json(
+            response_content
+        )
+
+    except ResponseError as error:
+        raise AgentServiceError(
+            f"Ollama test-generation request failed: {error}"
+        ) from error
+
+    except ValidationError as error:
+        raise AgentServiceError(
+            "Ollama returned output that did not match the "
+            "GeneratedTestCases schema."
+        ) from error
+
+
+def generate_uat_tests(
+    requirement: RequirementInput,
+    analysis: RequirementAnalysis,
+) -> GeneratedTestCases:
+    """Generate structured UAT tests from validated inputs."""
+
+    generation_input = (
+        "Generate UAT test cases from the following validated inputs.\n\n"
+        "ORIGINAL REQUIREMENT:\n\n"
+        f"{requirement.model_dump_json(indent=2)}\n\n"
+        "VALIDATED REQUIREMENT ANALYSIS:\n\n"
+        f"{analysis.model_dump_json(indent=2)}"
+    )
+
+    return request_structured_test_cases(generation_input)
 
 def correct_analysis(
     requirement: RequirementInput,

@@ -8,9 +8,12 @@ from src.agent_service import (
     AgentServiceError,
     analyse_requirement,
     correct_analysis,
+    generate_uat_tests,
 )
 from src.analysis_validators import validate_analysis
-from src.schemas import RequirementAnalysis, RequirementInput
+from src.schemas import (RequirementAnalysis, RequirementInput, TestPack)
+from src.coverage import calculate_coverage
+from src.test_case_validators import validate_generated_test_cases
 
 
 PROJECT_ROOT = Path(__file__).resolve().parent.parent
@@ -19,6 +22,10 @@ REQUIREMENT_PATH = (
 )
 
 MAX_CORRECTION_ATTEMPTS = 1
+
+OUTPUT_DIRECTORY = PROJECT_ROOT / "output"
+TEST_PACK_PATH = OUTPUT_DIRECTORY / "test_pack.json"
+
 
 
 def load_sample_requirement() -> RequirementInput:
@@ -72,6 +79,95 @@ def display_guardrail_result(
 
     return False
 
+def save_test_pack(test_pack: TestPack) -> None:
+    """Save the validated TestPack as formatted JSON."""
+
+    OUTPUT_DIRECTORY.mkdir(
+        parents=True,
+        exist_ok=True,
+    )
+
+    TEST_PACK_PATH.write_text(
+        test_pack.model_dump_json(indent=2),
+        encoding="utf-8",
+    )
+
+    print()
+    print(f"TestPack saved to: {TEST_PACK_PATH}")
+
+def generate_and_display_test_pack(
+    requirement: RequirementInput,
+    analysis: RequirementAnalysis,
+) -> None:
+    """Generate, validate and display the final UAT test pack."""
+
+    print()
+    print("Generating structured UAT test cases...")
+    print("Model execution may take several minutes.")
+
+    generated = generate_uat_tests(
+        requirement,
+        analysis,
+    )
+
+    print()
+    print("Generated UAT test cases: COMPLETED")
+    print("=" * 52)
+    print(generated.model_dump_json(indent=2))
+
+    issues = validate_generated_test_cases(
+        requirement,
+        analysis,
+        generated,
+    )
+
+    print()
+    print("Deterministic test-case guardrail validation")
+    print("=" * 52)
+
+    if issues:
+        print("TEST-CASE GUARDRAIL: FAILED")
+        print(f"Total issues detected: {len(issues)}")
+        print()
+
+        for number, issue in enumerate(issues, start=1):
+            print(f"{number}. {issue}")
+
+        print()
+        print(
+            "Final TestPack generation is BLOCKED. "
+            "Human review is required."
+        )
+        return
+
+    print("TEST-CASE GUARDRAIL: PASSED")
+
+    coverage_summary = calculate_coverage(
+        requirement,
+        generated.test_cases,
+    )
+
+    test_pack = TestPack(
+        requirement=requirement,
+        analysis=analysis,
+        test_cases=generated.test_cases,
+        coverage_summary=coverage_summary,
+    )
+
+    save_test_pack(test_pack)
+
+    print()
+    print("Final UAT TestPack: COMPLETED")
+    print("=" * 52)
+    print(test_pack.model_dump_json(indent=2))
+
+    print()
+    print(
+        f"Acceptance-criteria coverage: "
+        f"{coverage_summary.coverage_percentage}%"
+    )
+    print(f"Total UAT tests: {len(test_pack.test_cases)}")
+
 
 def main() -> None:
     """Run analysis, validation and one controlled correction."""
@@ -102,7 +198,12 @@ def main() -> None:
 
         if display_guardrail_result(issues):
             print()
-            print("Analysis is ready for human review.")
+            print("Analysis is ready for UAT test generation.")
+
+            generate_and_display_test_pack(
+                requirement,
+                analysis,
+            )
             return
 
         for attempt in range(1, MAX_CORRECTION_ATTEMPTS + 1):
@@ -128,13 +229,19 @@ def main() -> None:
                 analysis,
             )
 
-            if display_guardrail_result(issues):
-                print()
-                print(
-                    "Correction succeeded. Analysis is ready "
-                    "for human review."
-                )
-                return
+        if display_guardrail_result(issues):
+            print()
+            print(
+                "Correction succeeded. Analysis is ready "
+                "for UAT test generation."
+             )
+
+            generate_and_display_test_pack(
+                requirement,
+                analysis,
+            )
+            return
+            
 
         print()
         print("CORRECTION FAILED")
