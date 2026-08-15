@@ -12,10 +12,10 @@ from src.schemas import (
     RequirementInput,
     RiskLevel,
     Severity,
-    TestCase,
-    TestStatus,
-    TestStep,
-    TestType,
+    TestCase as UATTestCase,
+    TestStatus as UATTestStatus,
+    TestStep as UATTestStep,
+    TestType as UATTestType,
 )
 from src.test_case_validators import validate_generated_test_cases
 
@@ -106,9 +106,9 @@ def make_test_case(
     ambiguity_ids: list[str] | None = None,
     assumption_ids: list[str] | None = None,
     risk_level: RiskLevel = RiskLevel.HIGH,
-    status: TestStatus = TestStatus.READY_FOR_REVIEW,
+    status: UATTestStatus = UATTestStatus.READY_FOR_REVIEW,
     step_numbers: list[int] | None = None,
-) -> TestCase:
+) -> UATTestCase:
     """Create a test case with configurable validation properties."""
 
     criterion_ids = (
@@ -137,19 +137,19 @@ def make_test_case(
         else step_numbers
     )
 
-    return TestCase(
+    return UATTestCase(
         test_id=test_id,
         requirement_id=requirement_id,
         acceptance_criteria_ids=criterion_ids,
         title=title,
         objective="Verify that an eligible customer can transfer money.",
-        test_type=TestType.POSITIVE,
+        test_type=UATTestType.POSITIVE,
         priority=Priority.HIGH,
         risk_level=risk_level,
         preconditions=["The customer has an active account."],
         test_data=["Transfer amount: GBP 100.00"],
         steps=[
-            TestStep(
+            UATTestStep(
                 step_number=number,
                 action=f"Perform transfer action {number}.",
             )
@@ -328,7 +328,7 @@ def test_unapproved_assumption_requires_clarification_status() -> None:
         test_cases=[
             make_test_case(
                 assumption_ids=["ASM-001"],
-                status=TestStatus.READY_FOR_REVIEW,
+                status=UATTestStatus.READY_FOR_REVIEW,
             )
         ]
     )
@@ -426,7 +426,7 @@ def test_unresolved_ambiguity_requires_clarification() -> None:
         test_cases=[
             make_test_case(
                 ambiguity_ids=["AMB-001"],
-                status=TestStatus.READY_FOR_REVIEW,
+                status=UATTestStatus.READY_FOR_REVIEW,
             )
         ]
     )
@@ -447,7 +447,7 @@ def test_ambiguity_with_clarification_status_is_valid() -> None:
         test_cases=[
             make_test_case(
                 ambiguity_ids=["AMB-001"],
-                status=TestStatus.NEEDS_CLARIFICATION,
+                status=UATTestStatus.NEEDS_CLARIFICATION,
             )
         ]
     )
