@@ -181,6 +181,90 @@ def request_structured_test_cases(
             "GeneratedTestCases schema."
         ) from error
 
+def correct_generated_test_cases(
+    requirement: RequirementInput,
+    analysis: RequirementAnalysis,
+    previous_tests: GeneratedTestCases,
+    issues: list[str],
+) -> GeneratedTestCases:
+    """Request one correction using deterministic test-case feedback."""
+
+    valid_criterion_ids = [
+        criterion.criterion_id
+        for criterion in requirement.acceptance_criteria
+    ]
+
+    valid_risk_ids = [
+        risk.risk_id
+        for risk in analysis.business_risks
+    ]
+
+    valid_ambiguity_ids = [
+        ambiguity.ambiguity_id
+        for ambiguity in analysis.ambiguities
+    ]
+
+    valid_assumption_ids = [
+        assumption.assumption_id
+        for assumption in analysis.assumptions
+    ]
+
+    issues_text = "\n".join(
+        f"{number}. {issue}"
+        for number, issue in enumerate(issues, start=1)
+    )
+
+    correction_message = f"""
+Your previously generated UAT test cases failed deterministic validation.
+
+Correct every reported issue. Do not defend or explain the previous
+response. Return only the corrected structured test cases.
+
+Mandatory correction rules:
+
+1. Test IDs must be UAT-001, UAT-002 and so on.
+2. Every test ID and test title must be unique.
+3. Every test must use requirement ID:
+   {requirement.requirement_id}
+4. Criterion references may contain only exact IDs from:
+   {valid_criterion_ids}
+5. Every acceptance criterion must be covered.
+6. Risk references may contain only exact IDs from:
+   {valid_risk_ids}
+7. Every supplied business risk must be covered by a relevant test.
+8. Ambiguity references may contain only exact IDs from:
+   {valid_ambiguity_ids}
+9. Every supplied ambiguity must be represented by an affected test.
+10. Tests referencing unresolved ambiguities must have status
+    "Needs Clarification".
+11. Assumption references may contain only exact IDs from:
+    {valid_assumption_ids}
+12. Tests depending on unapproved assumptions must have status
+    "Needs Clarification".
+13. Do not reference rejected assumptions.
+14. Step numbers must begin at 1 and remain sequential.
+15. High-severity risks must be covered by High-risk tests.
+16. Do not invent requirements, rules, IDs, limits or dependencies.
+17. Preserve valid tests while repairing traceability and quality issues.
+
+ORIGINAL REQUIREMENT:
+
+{requirement.model_dump_json(indent=2)}
+
+VALIDATED REQUIREMENT ANALYSIS:
+
+{analysis.model_dump_json(indent=2)}
+
+PREVIOUS GENERATED TEST CASES:
+
+{previous_tests.model_dump_json(indent=2)}
+
+DETERMINISTIC VALIDATION ISSUES:
+
+{issues_text}
+""".strip()
+
+    return request_structured_test_cases(correction_message)
 
 def generate_uat_tests(
     requirement: RequirementInput,

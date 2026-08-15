@@ -32,6 +32,16 @@ def validate_generated_test_cases(
         for assumption in analysis.assumptions
     }
 
+    valid_risk_ids = {
+    risk.risk_id
+    for risk in analysis.business_risks
+    }
+
+    valid_ambiguity_ids = {
+    ambiguity.ambiguity_id
+    for ambiguity in analysis.ambiguities
+    }
+
     test_ids = [
         test_case.test_id
         for test_case in generated.test_cases
@@ -106,6 +116,42 @@ def validate_generated_test_cases(
                 "at 1 and remain sequential."
             )
 
+        if len(test_case.risk_ids) != len(set(test_case.risk_ids)):
+            issues.append(
+                f"Test '{test_case.test_id}' contains duplicate "
+                "business-risk references."
+            )
+
+        for risk_id in test_case.risk_ids:
+            if risk_id not in valid_risk_ids:
+                issues.append(
+                    f"Test '{test_case.test_id}' references unknown "
+                    f"business risk '{risk_id}'."
+                )
+
+        if len(test_case.ambiguity_ids) != len(
+            set(test_case.ambiguity_ids)
+        ):
+            issues.append(
+                f"Test '{test_case.test_id}' contains duplicate "
+                "ambiguity references."
+            )
+
+        for ambiguity_id in test_case.ambiguity_ids:
+            if ambiguity_id not in valid_ambiguity_ids:
+                issues.append(
+                    f"Test '{test_case.test_id}' references unknown "
+                    f"ambiguity '{ambiguity_id}'."
+                )
+                continue
+
+            if test_case.status is not TestStatus.NEEDS_CLARIFICATION:
+                issues.append(
+                    f"Test '{test_case.test_id}' references unresolved "
+                    f"ambiguity '{ambiguity_id}' and must have status "
+                    "'Needs Clarification'."
+                )
+
         for assumption_id in test_case.assumption_ids:
             assumption = assumptions_by_id.get(assumption_id)
 
@@ -168,6 +214,40 @@ def validate_generated_test_cases(
     missing_high_risk_coverage = sorted(
         high_risk_criterion_ids - criteria_with_high_risk_tests
     )
+
+    covered_risk_ids = {
+        risk_id
+        for test_case in generated.test_cases
+        for risk_id in test_case.risk_ids
+        if risk_id in valid_risk_ids
+    }
+
+    uncovered_risk_ids = sorted(
+        valid_risk_ids - covered_risk_ids
+    )
+
+    if uncovered_risk_ids:
+        issues.append(
+            "Business risks not covered by generated tests: "
+            + ", ".join(uncovered_risk_ids)
+        )
+
+    covered_ambiguity_ids = {
+        ambiguity_id
+        for test_case in generated.test_cases
+        for ambiguity_id in test_case.ambiguity_ids
+        if ambiguity_id in valid_ambiguity_ids
+    }
+
+    uncovered_ambiguity_ids = sorted(
+        valid_ambiguity_ids - covered_ambiguity_ids
+    )
+
+    if uncovered_ambiguity_ids:
+        issues.append(
+            "Ambiguities not represented by generated tests: "
+            + ", ".join(uncovered_ambiguity_ids)
+        )
 
     if missing_high_risk_coverage:
         issues.append(

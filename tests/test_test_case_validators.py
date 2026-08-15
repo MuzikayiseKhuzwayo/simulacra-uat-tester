@@ -2,6 +2,7 @@
 
 from src.schemas import (
     AcceptanceCriterion,
+    Ambiguity,
     Assumption,
     AssumptionStatus,
     BusinessRisk,
@@ -74,11 +75,35 @@ def valid_analysis(
     )
 
 
+def analysis_with_ambiguity() -> RequirementAnalysis:
+    """Return an analysis containing one unresolved ambiguity."""
+
+    analysis = valid_analysis()
+
+    return analysis.model_copy(
+        update={
+            "ambiguities": [
+                Ambiguity(
+                    ambiguity_id="AMB-001",
+                    description="The daily-limit time window is unclear.",
+                    impact="Boundary tests cannot be finalized.",
+                    clarification_question=(
+                        "Is the limit based on a calendar day "
+                        "or a rolling 24-hour period?"
+                    ),
+                    related_criteria=["AC-002"],
+                )
+            ]
+        }
+    )
+
 def make_test_case(
     test_id: str = "UAT-001",
     title: str = "Complete a valid transfer",
     requirement_id: str = "BR-001",
     criterion_ids: list[str] | None = None,
+    risk_ids: list[str] | None = None,
+    ambiguity_ids: list[str] | None = None,
     assumption_ids: list[str] | None = None,
     risk_level: RiskLevel = RiskLevel.HIGH,
     status: TestStatus = TestStatus.READY_FOR_REVIEW,
@@ -86,9 +111,31 @@ def make_test_case(
 ) -> TestCase:
     """Create a test case with configurable validation properties."""
 
-    criterion_ids = criterion_ids or ["AC-001", "AC-002"]
-    assumption_ids = assumption_ids or []
-    step_numbers = step_numbers or [1, 2]
+    criterion_ids = (
+        ["AC-001", "AC-002"]
+        if criterion_ids is None
+        else criterion_ids
+    )
+    risk_ids = (
+        ["RISK-001"]
+        if risk_ids is None
+        else risk_ids
+    )
+    ambiguity_ids = (
+        []
+        if ambiguity_ids is None
+        else ambiguity_ids
+    )
+    assumption_ids = (
+        []
+        if assumption_ids is None
+        else assumption_ids
+    )
+    step_numbers = (
+        [1, 2]
+        if step_numbers is None
+        else step_numbers
+    )
 
     return TestCase(
         test_id=test_id,
@@ -111,6 +158,8 @@ def make_test_case(
         expected_result=(
             "The transfer succeeds and a transaction reference is displayed."
         ),
+        risk_ids=risk_ids,
+        ambiguity_ids=ambiguity_ids,
         assumption_ids=assumption_ids,
         status=status,
     )
@@ -308,3 +357,104 @@ def test_high_risk_criterion_requires_high_risk_test() -> None:
         "High-risk acceptance criteria without a High-risk test: AC-002"
         in issues
     )
+
+def test_unknown_business_risk_reference_is_detected() -> None:
+    generated = GeneratedTestCases(
+        test_cases=[
+            make_test_case(risk_ids=["RISK-999"])
+        ]
+    )
+
+    issues = validate(generated)
+
+    assert any(
+        "unknown business risk 'RISK-999'" in issue
+        for issue in issues
+    )
+
+
+def test_uncovered_business_risk_is_detected() -> None:
+    generated = GeneratedTestCases(
+        test_cases=[
+            make_test_case(risk_ids=[])
+        ]
+    )
+
+    issues = validate(generated)
+
+    assert (
+        "Business risks not covered by generated tests: RISK-001"
+        in issues
+    )
+
+
+def test_unknown_ambiguity_reference_is_detected() -> None:
+    generated = GeneratedTestCases(
+        test_cases=[
+            make_test_case(ambiguity_ids=["AMB-999"])
+        ]
+    )
+
+    issues = validate(generated)
+
+    assert any(
+        "unknown ambiguity 'AMB-999'" in issue
+        for issue in issues
+    )
+
+
+def test_uncovered_ambiguity_is_detected() -> None:
+    generated = GeneratedTestCases(
+        test_cases=[
+            make_test_case(ambiguity_ids=[])
+        ]
+    )
+
+    issues = validate(
+        generated,
+        analysis=analysis_with_ambiguity(),
+    )
+
+    assert (
+        "Ambiguities not represented by generated tests: AMB-001"
+        in issues
+    )
+
+
+def test_unresolved_ambiguity_requires_clarification() -> None:
+    generated = GeneratedTestCases(
+        test_cases=[
+            make_test_case(
+                ambiguity_ids=["AMB-001"],
+                status=TestStatus.READY_FOR_REVIEW,
+            )
+        ]
+    )
+
+    issues = validate(
+        generated,
+        analysis=analysis_with_ambiguity(),
+    )
+
+    assert any(
+        "must have status 'Needs Clarification'" in issue
+        for issue in issues
+    )
+
+
+def test_ambiguity_with_clarification_status_is_valid() -> None:
+    generated = GeneratedTestCases(
+        test_cases=[
+            make_test_case(
+                ambiguity_ids=["AMB-001"],
+                status=TestStatus.NEEDS_CLARIFICATION,
+            )
+        ]
+    )
+
+    issues = validate(
+        generated,
+        analysis=analysis_with_ambiguity(),
+    )
+
+    assert issues == []

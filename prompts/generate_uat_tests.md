@@ -25,6 +25,12 @@ TRACEABILITY
 6. Ensure every acceptance criterion is covered by at least one test case.
 7. Reference assumption IDs only when the test depends on those assumptions.
 8. Do not place acceptance-criterion descriptions inside ID fields.
+9. Every business risk must be referenced by at least one relevant test case.
+10. Use only exact business-risk IDs supplied in the validated analysis.
+11. Every ambiguity must be referenced by at least one affected test case.
+12. Use only exact ambiguity IDs supplied in the validated analysis.
+13. A test referencing an unresolved ambiguity must have status
+    "Needs Clarification".
 
 TEST DESIGN
 
@@ -65,6 +71,9 @@ TEST CASE CONTENT
 10. Every action must describe something a UAT tester can perform.
 11. The expected result must be observable and testable.
 12. Do not use vague wording such as "works correctly" or "as expected".
+13. Populate risk_ids with the exact IDs of risks addressed by the test.
+14. Populate ambiguity_ids with the exact IDs of ambiguities affecting the test.
+15. Use an empty list only when no supplied risk or ambiguity applies.
 
 HUMAN REVIEW AND CLARIFICATION
 

@@ -216,3 +216,16 @@ def test_generated_test_cases_accepts_valid_test_case() -> None:
 def test_generated_test_cases_requires_at_least_one_test() -> None:
     with pytest.raises(ValidationError):
         GeneratedTestCases(test_cases=[])
+
+def test_test_case_preserves_semantic_traceability() -> None:
+    test_case_data = valid_test_case().model_dump()
+
+    test_case_data["risk_ids"] = ["RISK-001"]
+    test_case_data["ambiguity_ids"] = ["AMB-001"]
+    test_case_data["assumption_ids"] = ["ASM-001"]
+
+    test_case = UATTestCase.model_validate(test_case_data)
+
+    assert test_case.risk_ids == ["RISK-001"]
+    assert test_case.ambiguity_ids == ["AMB-001"]
+    assert test_case.assumption_ids == ["ASM-001"]
