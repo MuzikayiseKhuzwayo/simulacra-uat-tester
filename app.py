@@ -5,9 +5,14 @@ from pydantic import ValidationError
 from src.excel_export import create_test_pack_excel
 from src.agent_service import AgentServiceError
 from src.history_repository import (
+    STATUS_COMPLETED,
+    STATUS_FAILED,
+    STATUS_RUNNING,
+    complete_execution,
+    fail_execution,
     get_execution_json,
     list_executions,
-    save_execution,
+    start_execution,
 )
 
 
@@ -73,8 +78,31 @@ def parse_list(raw_text: str) -> list[str]:
         if line.strip()
     ]
 
+def record_execution_failure(
+    execution_id: int | None,
+    failure_stage: str,
+    error: Exception,
+) -> None:
+    """Record a workflow failure without hiding the original error."""
+
+    if execution_id is None:
+        return
+
+    try:
+        fail_execution(
+            execution_id=execution_id,
+            failure_stage=failure_stage,
+            error_message=str(error),
+        )
+    except Exception as history_error:
+        st.warning(
+            "The workflow failed, but its failure status "
+            "could not be saved."
+        )
+        st.code(str(history_error))
+
 def display_execution_history() -> None:
-    """Display saved TestPack executions in the sidebar."""
+    """Display saved executions in the Streamlit sidebar."""
 
     st.sidebar.header("Execution history")
 
@@ -91,10 +119,20 @@ def display_execution_history() -> None:
         for execution in executions
     }
 
+    status_icons = {
+        STATUS_RUNNING: "⏳",
+        STATUS_COMPLETED: "✅",
+        STATUS_FAILED: "❌",
+    }
+
     selected_execution_id = st.sidebar.selectbox(
         "Select a saved execution",
         options=list(execution_by_id),
         format_func=lambda execution_id: (
+            f"{status_icons.get(
+                execution_by_id[execution_id].status,
+                '•',
+            )} "
             f"#{execution_id} | "
             f"{execution_by_id[execution_id].requirement_id} | "
             f"{execution_by_id[execution_id].title}"
@@ -106,9 +144,46 @@ def display_execution_history() -> None:
         selected_execution_id
     ]
 
-    st.sidebar.caption(
-        f"Created: {selected_execution.created_at}"
+    st.sidebar.write(
+        f"**Status:** {selected_execution.status}"
     )
+    st.sidebar.caption(
+        f"Started: {selected_execution.started_at}"
+    )
+
+    if selected_execution.duration_seconds is not None:
+        st.sidebar.write(
+            "**Duration:** "
+            f"{selected_execution.duration_seconds:.1f} seconds"
+        )
+
+    if selected_execution.status == STATUS_RUNNING:
+        st.sidebar.info(
+            "This execution is currently running."
+        )
+        return
+
+    if selected_execution.status == STATUS_FAILED:
+        st.sidebar.error(
+            "This execution did not produce a TestPack."
+        )
+
+        if selected_execution.failure_stage:
+            st.sidebar.write(
+                "**Failure stage:** "
+                f"{selected_execution.failure_stage}"
+            )
+
+        if selected_execution.error_message:
+            with st.sidebar.expander(
+                "View error details"
+            ):
+                st.code(
+                    selected_execution.error_message
+                )
+
+        return
+
     st.sidebar.write(
         f"**Generated tests:** "
         f"{selected_execution.test_count}"
@@ -128,7 +203,7 @@ def display_execution_history() -> None:
 
         if saved_json is None:
             st.sidebar.error(
-                "The selected execution could not be found."
+                "The completed TestPack could not be found."
             )
             return
 
@@ -153,6 +228,7 @@ def display_execution_history() -> None:
         )
 
         st.rerun()
+
 
 def display_test_pack(test_pack) -> None:
     """Display a validated TestPack in review-friendly sections."""
@@ -472,6 +548,8 @@ with st.form("requirement_form"):
     )
 
 if submitted:
+    execution_id: int | None = None
+
     try:
         requirement = RequirementInput(
             requirement_id=requirement_id,
@@ -489,6 +567,10 @@ if submitted:
                 known_risks_text
             ),
         )
+        execution_id = start_execution(
+            requirement_id=requirement.requirement_id,
+            title=requirement.title,
+        )
 
         with st.spinner(
             "Running local AI analysis and generating UAT tests. "
@@ -498,16 +580,17 @@ if submitted:
                 requirement
             )
 
-            test_pack_json = generated_test_pack.model_dump_json(
-                indent=2
+            test_pack_json = (
+                generated_test_pack.model_dump_json(
+                    indent=2
+                )
             )
 
-            execution_id = save_execution(
-                requirement_id=(
-                    generated_test_pack.requirement.requirement_id
+            complete_execution(
+                execution_id=execution_id,
+                test_count=len(
+                    generated_test_pack.test_cases
                 ),
-                title=generated_test_pack.requirement.title,
-                test_count=len(generated_test_pack.test_cases),
                 coverage_percentage=(
                     generated_test_pack
                     .coverage_summary
@@ -516,22 +599,43 @@ if submitted:
                 test_pack_json=test_pack_json,
             )
 
-            st.session_state["test_pack"] = generated_test_pack
-            st.session_state["execution_id"] = execution_id
+            st.session_state["test_pack"] = (
+                generated_test_pack
+            )
+            st.session_state["execution_id"] = (
+                execution_id
+            )
 
         st.success(
-            "The validated UAT TestPack was generated and saved "
-            f"successfully. Execution ID: {execution_id}"
-        )   
+            "The validated UAT TestPack was generated "
+            "successfully. "
+            f"Execution ID: {execution_id}"
+        )
 
     except ValueError as error:
+        record_execution_failure(
+            execution_id,
+            "input-or-validation",
+            error,
+        )
         st.error(str(error))
 
     except ValidationError as error:
+        record_execution_failure(
+            execution_id,
+            "schema-validation",
+            error,
+        )
         st.error("The requirement input is invalid.")
         st.code(str(error))
 
     except WorkflowBlockedError as error:
+        record_execution_failure(
+            execution_id,
+            error.stage,
+            error,
+        )
+
         st.error(
             f"The workflow was blocked during {error.stage}."
         )
@@ -540,10 +644,20 @@ if submitted:
             st.write(f"- {issue}")
 
     except AgentServiceError as error:
+        record_execution_failure(
+            execution_id,
+            "agent-service",
+            error,
+        )
         st.error("The local Ollama agent could not complete.")
         st.code(str(error))
 
     except Exception as error:
+        record_execution_failure(
+            execution_id,
+            "unexpected",
+            error,
+        )
         st.error("An unexpected error occurred.")
         st.exception(error)
 
