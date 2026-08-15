@@ -4,10 +4,19 @@ import streamlit as st
 from pydantic import ValidationError
 from src.excel_export import create_test_pack_excel
 from src.agent_service import AgentServiceError
+from src.history_repository import (
+    get_execution_json,
+    list_executions,
+    save_execution,
+)
+
+
 from src.schemas import (
     AcceptanceCriterion,
     RequirementInput,
+    TestPack,
 )
+
 from src.workflow import (
     WorkflowBlockedError,
     run_uat_workflow,
@@ -64,6 +73,86 @@ def parse_list(raw_text: str) -> list[str]:
         if line.strip()
     ]
 
+def display_execution_history() -> None:
+    """Display saved TestPack executions in the sidebar."""
+
+    st.sidebar.header("Execution history")
+
+    executions = list_executions()
+
+    if not executions:
+        st.sidebar.info(
+            "No saved executions are available yet."
+        )
+        return
+
+    execution_by_id = {
+        execution.execution_id: execution
+        for execution in executions
+    }
+
+    selected_execution_id = st.sidebar.selectbox(
+        "Select a saved execution",
+        options=list(execution_by_id),
+        format_func=lambda execution_id: (
+            f"#{execution_id} | "
+            f"{execution_by_id[execution_id].requirement_id} | "
+            f"{execution_by_id[execution_id].title}"
+        ),
+        key="selected_execution_id",
+    )
+
+    selected_execution = execution_by_id[
+        selected_execution_id
+    ]
+
+    st.sidebar.caption(
+        f"Created: {selected_execution.created_at}"
+    )
+    st.sidebar.write(
+        f"**Generated tests:** "
+        f"{selected_execution.test_count}"
+    )
+    st.sidebar.write(
+        f"**Coverage:** "
+        f"{selected_execution.coverage_percentage}%"
+    )
+
+    if st.sidebar.button(
+        "Load saved TestPack",
+        use_container_width=True,
+    ):
+        saved_json = get_execution_json(
+            selected_execution_id
+        )
+
+        if saved_json is None:
+            st.sidebar.error(
+                "The selected execution could not be found."
+            )
+            return
+
+        try:
+            saved_test_pack = TestPack.model_validate_json(
+                saved_json
+            )
+        except ValidationError as error:
+            st.sidebar.error(
+                "The saved execution is not a valid TestPack."
+            )
+            st.sidebar.code(str(error))
+            return
+
+        st.session_state["test_pack"] = saved_test_pack
+        st.session_state["execution_id"] = (
+            selected_execution_id
+        )
+
+        st.sidebar.success(
+            f"Execution #{selected_execution_id} loaded."
+        )
+
+        st.rerun()
 
 def display_test_pack(test_pack) -> None:
     """Display a validated TestPack in review-friendly sections."""
@@ -302,6 +391,7 @@ st.title("🧪 TestScope AI")
 st.caption(
     "Risk-aware UAT test design with deterministic guardrails"
 )
+display_execution_history()
 
 with st.form("requirement_form"):
     st.subheader("Business requirement")
@@ -404,13 +494,35 @@ if submitted:
             "Running local AI analysis and generating UAT tests. "
             "This may take several minutes..."
         ):
-            st.session_state["test_pack"] = run_uat_workflow(
+            generated_test_pack = run_uat_workflow(
                 requirement
             )
 
+            test_pack_json = generated_test_pack.model_dump_json(
+                indent=2
+            )
+
+            execution_id = save_execution(
+                requirement_id=(
+                    generated_test_pack.requirement.requirement_id
+                ),
+                title=generated_test_pack.requirement.title,
+                test_count=len(generated_test_pack.test_cases),
+                coverage_percentage=(
+                    generated_test_pack
+                    .coverage_summary
+                    .coverage_percentage
+                ),
+                test_pack_json=test_pack_json,
+            )
+
+            st.session_state["test_pack"] = generated_test_pack
+            st.session_state["execution_id"] = execution_id
+
         st.success(
-            "The validated UAT TestPack was generated successfully."
-        )
+            "The validated UAT TestPack was generated and saved "
+            f"successfully. Execution ID: {execution_id}"
+        )   
 
     except ValueError as error:
         st.error(str(error))
