@@ -6,11 +6,14 @@ from pathlib import Path
 import pytest
 
 from src.history_repository import (
+    complete_execution,
     delete_execution,
+    fail_execution,
     get_execution_json,
     initialize_database,
     list_executions,
     save_execution,
+    start_execution,
 )
 
 
@@ -157,3 +160,108 @@ def test_invalid_json_is_not_saved(
         )
 
     assert list_executions(database_path) == []
+
+def test_execution_can_be_started(
+    tmp_path: Path,
+) -> None:
+    """A new workflow must initially have RUNNING status."""
+
+    database_path = tmp_path / "history.db"
+
+    execution_id = start_execution(
+        requirement_id="BR-001",
+        title="Transfer money",
+        database_path=database_path,
+    )
+
+    executions = list_executions(database_path)
+
+    assert execution_id == 1
+    assert len(executions) == 1
+    assert executions[0].status == "RUNNING"
+    assert executions[0].started_at is not None
+    assert executions[0].completed_at is None
+    assert executions[0].duration_seconds is None
+
+def test_running_execution_can_be_completed(
+    tmp_path: Path,
+) -> None:
+    """A successful workflow must update its RUNNING record."""
+
+    database_path = tmp_path / "history.db"
+
+    execution_id = start_execution(
+        requirement_id="BR-001",
+        title="Transfer money",
+        database_path=database_path,
+    )
+
+    complete_execution(
+        execution_id=execution_id,
+        test_count=1,
+        coverage_percentage=100.0,
+        test_pack_json=sample_test_pack_json(),
+        database_path=database_path,
+    )
+
+    executions = list_executions(database_path)
+
+    assert len(executions) == 1
+    assert executions[0].status == "COMPLETED"
+    assert executions[0].test_count == 1
+    assert executions[0].coverage_percentage == 100.0
+    assert executions[0].completed_at is not None
+    assert executions[0].duration_seconds is not None
+
+    stored_json = get_execution_json(
+        execution_id,
+        database_path,
+    )
+
+    assert stored_json is not None
+    assert json.loads(stored_json) == json.loads(
+        sample_test_pack_json()
+    )
+
+def test_running_execution_can_be_failed(
+    tmp_path: Path,
+) -> None:
+    """A failed workflow must retain its failure details."""
+
+    database_path = tmp_path / "history.db"
+
+    execution_id = start_execution(
+        requirement_id="BR-001",
+        title="Transfer money",
+        database_path=database_path,
+    )
+
+    fail_execution(
+        execution_id=execution_id,
+        failure_stage="analysis",
+        error_message="Ollama request timed out.",
+        database_path=database_path,
+    )
+
+    executions = list_executions(database_path)
+
+    assert len(executions) == 1
+    assert executions[0].status == "FAILED"
+    assert executions[0].failure_stage == "analysis"
+    assert (
+        executions[0].error_message
+        == "Ollama request timed out."
+    )
+    assert executions[0].completed_at is not None
+    assert executions[0].duration_seconds is not None
+
+    # Failed executions do not contain a valid TestPack.
+    assert (
+        get_execution_json(
+            execution_id,
+            database_path,
+        )
+        is None
+    )
+
+    
