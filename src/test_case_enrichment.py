@@ -46,33 +46,21 @@ def enrich_test_traceability(
             )
         ]
 
+        # The deterministic acceptance-criterion relationship is
+        # the source of truth. AI-supplied IDs are not preserved
+        # unless they are independently matched here.
         risk_ids = list(
-            dict.fromkeys(
-                [
-                    *test_case.risk_ids,
-                    *matched_risk_ids,
-                ]
-            )
+            dict.fromkeys(matched_risk_ids)
         )
 
         ambiguity_ids = list(
-            dict.fromkeys(
-                [
-                    *test_case.ambiguity_ids,
-                    *matched_ambiguity_ids,
-                ]
-            )
+            dict.fromkeys(matched_ambiguity_ids)
         )
 
         assumption_ids = list(
             dict.fromkeys(
-                [
-                    *test_case.assumption_ids,
-                    *[
-                        assumption.assumption_id
-                        for assumption in matched_assumptions
-                    ],
-                ]
+                assumption.assumption_id
+                for assumption in matched_assumptions
             )
         )
 
