@@ -176,6 +176,8 @@ class TestCase(StrictModel):
     test_data: list[NonEmptyString] = Field(min_length=1)
     steps: list[TestStep] = Field(min_length=1)
     expected_result: NonEmptyString
+    risk_ids: list[Identifier] = Field(default_factory=list)
+    ambiguity_ids: list[Identifier] = Field(default_factory=list)
     assumption_ids: list[Identifier] = Field(default_factory=list)
     status: TestStatus
 
