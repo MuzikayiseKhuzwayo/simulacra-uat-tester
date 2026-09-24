@@ -6,12 +6,15 @@ from src.simulacra.database import (
     get_campaign,
     get_feedback_by_session,
     get_persona,
+    get_quantix_feedback,
     get_session_telemetry,
     get_uat_report,
     initialize_database,
     list_campaigns,
     list_feedback_by_campaign,
+    list_quantix_feedbacks_by_campaign,
     list_sessions_by_campaign,
+    save_quantix_feedback,
     verify_live_datastore_write,
 )
 from src.simulacra.feedback import FeedbackEngine
@@ -35,6 +38,14 @@ from src.simulacra.models import (
 )
 from src.simulacra.persona import generate_cohort, get_default_personas, get_persona_by_id, get_preset_personas
 from src.simulacra.planner import CognitivePlanner
+from src.simulacra.quantix_feedback_form import (
+    GOOGLE_FORM_ID,
+    GOOGLE_FORM_VIEW_URL,
+    QuantixFeedbackForm,
+    fill_google_form_playwright,
+    generate_quantix_feedback,
+    submit_to_google_form_http,
+)
 from src.simulacra.reporting import ReportGenerator
 from src.simulacra.runner import SimulationRunner
 
@@ -52,6 +63,12 @@ __all__ = [
     "SessionMetrics",
     "PersonaFeedback",
     "UATReport",
+    "QuantixFeedbackForm",
+    "generate_quantix_feedback",
+    "submit_to_google_form_http",
+    "fill_google_form_playwright",
+    "GOOGLE_FORM_ID",
+    "GOOGLE_FORM_VIEW_URL",
     "ActionType",
     "Emotion",
     "ExitReason",
@@ -72,6 +89,9 @@ __all__ = [
     "get_session_telemetry",
     "get_feedback_by_session",
     "list_feedback_by_campaign",
+    "get_quantix_feedback",
+    "list_quantix_feedbacks_by_campaign",
+    "save_quantix_feedback",
     "get_uat_report",
     "DEFAULT_SIMULACRA_DB_PATH",
 ]

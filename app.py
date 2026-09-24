@@ -272,11 +272,13 @@ with tab_reports:
             all_tel: list[sim.TelemetryEvent] = []
             for s in camp_sessions:
                 all_tel.extend(sim.get_session_telemetry(s.session_id))
+            camp_qforms = sim.list_quantix_feedbacks_by_campaign(selected_camp_id)
             excel_bytes = ReportGenerator.export_excel_workbook(
                 report=report_obj,
                 sessions=camp_sessions,
                 feedbacks=camp_feedbacks,
                 telemetry=all_tel,
+                quantix_forms=camp_qforms,
             )
             col_d2.download_button(
                 "📥 Download UX Audit Workbook (Excel)",
@@ -355,11 +357,11 @@ with tab_sessions:
 
 
 # -----------------------------------------------------------------------------
-# TAB 4: Persona UX Surveys
+# TAB 4: Persona UX Surveys & Google Form Feedback
 # -----------------------------------------------------------------------------
 
 with tab_surveys:
-    st.subheader("Structured Persona UX Feedback & Surveys")
+    st.subheader("Structured Persona UX Feedback & Google Form Surveys")
     campaigns = sim.list_campaigns()
 
     if not campaigns:
@@ -372,41 +374,233 @@ with tab_surveys:
             key="fb_camp_select",
         )
         feedbacks = sim.list_feedback_by_campaign(sel_campaign_for_fb)
+        quantix_feedbacks = sim.list_quantix_feedbacks_by_campaign(sel_campaign_for_fb)
 
-        if not feedbacks:
-            st.info("No feedback surveys recorded for this campaign.")
+        format_col1, format_col2 = st.columns([3, 1])
+        with format_col1:
+            survey_format = st.radio(
+                "Survey Display Format",
+                [
+                    "📋 Google Form Format (Customer Feedback - Quantix)",
+                    "📊 Standard UX Scorecard (SUS / CES / NPS)",
+                ],
+                horizontal=True,
+            )
+        with format_col2:
+            if quantix_feedbacks:
+                all_qfb_json = json.dumps([q.model_dump() for q in quantix_feedbacks], indent=2)
+                st.download_button(
+                    "📥 Export Google Forms (JSON)",
+                    data=all_qfb_json,
+                    file_name=f"Quantix_Google_Forms_{sel_campaign_for_fb}.json",
+                    mime="application/json",
+                    use_container_width=True,
+                )
+
+        if survey_format.startswith("📋 Google Form Format"):
+            if not quantix_feedbacks:
+                st.info(
+                    "No Google Form responses found for this campaign. "
+                    "Run a new simulation from the Simulation Studio to generate complete 8-section Google Form responses."
+                )
+            else:
+                st.caption(
+                    f"Survey responses modeled directly after the official "
+                    f"[Quantix Customer Feedback Google Form]({sim.GOOGLE_FORM_VIEW_URL}) "
+                    f"capturing all 8 sections, Likert scales, and open-ended friction points."
+                )
+
+                for qfb in quantix_feedbacks:
+                    expander_label = (
+                        f"📝 {qfb.persona_name} ({qfb.primary_role}) — "
+                        f"NPS: {qfb.nps_recommendation}/10 | PMF: {qfb.pmf_feeling.split(';')[0]} | Emotion: {qfb.emotional_sentiment}"
+                    )
+                    with st.expander(expander_label, expanded=True):
+                        # Google Form Styled Header Card
+                        st.markdown(
+                            f"""
+                            <div style="background: linear-gradient(135deg, #02746b 0%, #039f93 100%); 
+                                        color: white; padding: 20px 24px; border-radius: 8px; margin-bottom: 20px; box-shadow: 0 4px 6px -1px rgba(0,0,0,0.1);">
+                                <h2 style="margin: 0; color: white; font-family: sans-serif; font-weight: 600;">Customer Feedback - Quantix</h2>
+                                <p style="margin: 6px 0 0 0; opacity: 0.95; font-size: 14px;">
+                                    Synthetic Persona Response &bull; <b>{qfb.persona_name}</b> ({qfb.primary_role}) &bull; Submitted: <code>{qfb.submitted_at[:19]}</code>
+                                </p>
+                            </div>
+                            """,
+                            unsafe_allow_html=True,
+                        )
+
+                        # SECTION 1: Landing Page Evaluation
+                        st.markdown("### 1. Landing Page Evaluation")
+                        col_lp1, col_lp2 = st.columns([1, 1])
+                        with col_lp1:
+                            st.markdown(f"**Gut Reaction:**")
+                            for gr in qfb.gut_reaction:
+                                st.markdown(f"- 🏷️ `{gr}`")
+                        with col_lp2:
+                            c_s1, c_s2, c_s3 = st.columns(3)
+                            c_s1.metric("Clarity (10-15s)", f"{qfb.clarity_10_15s} / 5")
+                            c_s2.metric("Visual Design", f"{qfb.visual_design} / 5")
+                            c_s3.metric("Credibility", f"{qfb.credibility} / 5")
+
+                        st.markdown(f"**Element that convinced you to explore further:**")
+                        st.info(f"💬 \"{qfb.convincing_element}\"")
+                        if qfb.hesitation_trigger:
+                            st.markdown(f"**Element that caused hesitation or skepticism:**")
+                            st.warning(f"⚠️ \"{qfb.hesitation_trigger}\"")
+
+                        st.divider()
+
+                        # SECTION 2: Account Creation and Sign-Up
+                        st.markdown("### 2. Account Creation and Sign-Up")
+                        c_su1, c_su2, c_su3 = st.columns(3)
+                        c_su1.markdown(f"**Sign-Up Method:**\n`{qfb.signup_method}`")
+                        c_su2.markdown(f"**Information Requested:**\n`{qfb.info_requested_feeling}`")
+                        c_su3.markdown(f"**Technical Issues:**\n`{qfb.signup_technical_issues}`")
+
+                        st.divider()
+
+                        # SECTION 3: Initial Intake Experience
+                        st.markdown("### 3. Initial Intake Experience")
+                        c_in1, c_in2, c_in3, c_in4 = st.columns(4)
+                        c_in1.metric("Relevance", f"{qfb.relevance_rating} / 5")
+                        c_in2.metric("Clarity", f"{qfb.clarity_rating} / 5")
+                        c_in3.metric("Progression", f"{qfb.progression_rating} / 5")
+                        c_in4.metric("Engagement", f"{qfb.engagement_rating} / 5")
+                        st.markdown(f"- **Time Expected vs Actual:** `{qfb.time_expected_vs_actual}`")
+                        st.markdown(f"- **Comfort Answering Profile:** `{qfb.comfort_answering_profile}`")
+                        st.markdown(f"- **Awkward / Intrusive Question:** *\"{qfb.awkward_question}\"*")
+
+                        st.divider()
+
+                        # SECTION 4: Core Product
+                        st.markdown("### 4. Core Product")
+                        col_cp1, col_cp2 = st.columns(2)
+                        with col_cp1:
+                            st.markdown("**Initial Feeling upon Dashboard Load:**")
+                            for df in qfb.initial_dashboard_feeling:
+                                st.markdown(f"- 💡 `{df}`")
+                        with col_cp2:
+                            c_cp_m1, c_cp_m2, c_cp_m3 = st.columns(3)
+                            c_cp_m1.metric("Intuitiveness", f"{qfb.navigating_intuitiveness} / 5")
+                            c_cp_m2.metric("Speed", f"{qfb.speed_responsiveness} / 5")
+                            c_cp_m3.metric("Reliability", f"{qfb.reliability} / 5")
+
+                        st.markdown(f"**The 'Aha!' Moment:**")
+                        st.success(f"✨ \"{qfb.aha_moment}\"")
+
+                        st.divider()
+
+                        # SECTION 5: Emotional Sentiment
+                        st.markdown("### 5. Emotional Sentiment and Perception")
+                        st.markdown(f"**Dominant Emotional Sentiment:** `{qfb.emotional_sentiment}`")
+
+                        st.divider()
+
+                        # SECTION 6: Friction and Missing Pieces
+                        st.markdown("### 6. Friction and Missing Pieces")
+                        st.markdown(f"**Most Frustrating or Confusing Moment:**")
+                        st.error(f"🛑 \"{qfb.most_frustrating_moment}\"")
+                        st.markdown(f"**Feature Expected but Missing:**")
+                        st.info(f"🔍 \"{qfb.missing_feature_expected}\"")
+                        st.markdown(f"**Prior Alternative Used:** `{qfb.prior_alternative_used}`")
+
+                        st.divider()
+
+                        # SECTION 7: Overall Satisfaction & PMF
+                        st.markdown("### 7. Overall Satisfaction & Product-Market Fit")
+                        c_sat1, c_sat2 = st.columns([1, 2])
+                        with c_sat1:
+                            nps_label = "🟢 Promoter" if qfb.nps_recommendation >= 9 else ("🟡 Passive" if qfb.nps_recommendation >= 7 else "🔴 Detractor")
+                            st.metric("NPS Score", f"{qfb.nps_recommendation} / 10", nps_label)
+                            st.markdown(f"**PMF Assessment:**\n`{qfb.pmf_feeling}`")
+                        with c_sat2:
+                            st.markdown(f"**Reason for Recommendation Rating:**")
+                            st.markdown(f"> \"{qfb.nps_reason}\"")
+                            st.markdown(f"**Magic Wand (One Wish):**")
+                            st.markdown(f"> 🪄 \"{qfb.magic_wand_change}\"")
+
+                        st.divider()
+
+                        # SECTION 8: User Qualification and Comprehension
+                        st.markdown("### 8. User Qualification and Comprehension")
+                        c_uq1, c_uq2 = st.columns(2)
+                        with c_uq1:
+                            st.markdown(f"- **Primary Role:** `{qfb.primary_role}`")
+                            st.markdown(f"- **Discovery Source:** `{qfb.discovery_source}`")
+                            st.markdown(f"- **Problem Urgency:** `{qfb.problem_urgency}`")
+                            st.markdown(f"- **Team Size:** `{qfb.team_size}`")
+                        with c_uq2:
+                            st.markdown(f"- **Decision Maker Role:** `{qfb.role_in_selecting_tools}`")
+                            st.markdown(f"- **Domain Knowledge:** `{qfb.problem_space_knowledge}`")
+                            st.markdown(f"- **Technical Comfort:** `{qfb.tech_comfort} / 5`")
+                            st.markdown(f"- **Related Tools Used:** `{', '.join(qfb.related_tools_used)}`")
+
+                        st.markdown(f"**Quantix Pitch in Persona's Own Words:**")
+                        st.info(f"📢 \"{qfb.one_sentence_pitch}\"")
+                        st.markdown(f"**Expected Outcome / Transformation:**")
+                        st.info(f"🚀 \"{qfb.expected_transformation}\"")
+
+                        # Live Google Form Actions
+                        st.markdown("#### 🔗 Live Google Form Automation")
+                        col_act1, col_act2 = st.columns([1, 1])
+                        with col_act1:
+                            st.link_button(
+                                "🌐 Open Live Google Form in Browser",
+                                sim.GOOGLE_FORM_VIEW_URL,
+                                use_container_width=True,
+                            )
+                        with col_act2:
+                            if st.button(
+                                f"🤖 Auto-Fill Live Google Form with Playwright ({qfb.persona_name})",
+                                key=f"btn_fill_{qfb.session_id}",
+                                use_container_width=True,
+                            ):
+                                with st.spinner(f"Launching Playwright to fill Google Form for {qfb.persona_name}..."):
+                                    ok, msg, shot = sim.fill_google_form_playwright(qfb, headless=True, submit=False)
+                                    if ok:
+                                        st.success(f"Playwright executed: {msg}")
+                                        if shot and Path(shot).exists():
+                                            st.image(shot, caption=f"Google Form Snapshot for {qfb.persona_name}", use_container_width=True)
+                                    else:
+                                        st.warning(f"Playwright result: {msg}")
+
         else:
-            for fb in feedbacks:
-                with st.expander(f"👤 {fb.persona_name} — Usability Score: {fb.sus_score:.1f}/100 ({'⭐' * fb.overall_rating})", expanded=True):
-                    st.markdown(f"### 💬 Verbatim Quote")
-                    st.info(f"{fb.verbatim_quote}")
+            # Standard UX Scorecard View
+            if not feedbacks:
+                st.info("No standard feedback surveys recorded for this campaign.")
+            else:
+                for fb in feedbacks:
+                    with st.expander(f"👤 {fb.persona_name} — Usability Score: {fb.sus_score:.1f}/100 ({'⭐' * fb.overall_rating})", expanded=True):
+                        st.markdown(f"### 💬 Verbatim Quote")
+                        st.info(f"{fb.verbatim_quote}")
 
-                    col_f1, col_f2, col_f3 = st.columns(3)
-                    col_f1.metric("SUS Score", f"{fb.sus_score:.1f}/100")
-                    col_f2.metric("Customer Effort (CES)", f"{fb.ces_score}/7")
-                    col_f3.metric("Net Promoter (NPS)", f"{fb.nps_rating}/10")
+                        col_f1, col_f2, col_f3 = st.columns(3)
+                        col_f1.metric("SUS Score", f"{fb.sus_score:.1f}/100")
+                        col_f2.metric("Customer Effort (CES)", f"{fb.ces_score}/7")
+                        col_f3.metric("Net Promoter (NPS)", f"{fb.nps_rating}/10")
 
-                    st.markdown(f"**Sentiment Overview:** {fb.sentiment_summary}")
+                        st.markdown(f"**Sentiment Overview:** {fb.sentiment_summary}")
 
-                    if fb.what_worked_well:
-                        st.markdown("**✅ What Worked Well:**")
-                        for item in fb.what_worked_well:
-                            st.markdown(f"- {item}")
+                        if fb.what_worked_well:
+                            st.markdown("**✅ What Worked Well:**")
+                            for item in fb.what_worked_well:
+                                st.markdown(f"- {item}")
 
-                    if fb.confusing_elements:
-                        st.markdown("**⚠️ Confusing Elements:**")
-                        for item in fb.confusing_elements:
-                            st.markdown(f"- {item}")
+                        if fb.confusing_elements:
+                            st.markdown("**⚠️ Confusing Elements:**")
+                            for item in fb.confusing_elements:
+                                st.markdown(f"- {item}")
 
-                    if fb.friction_points:
-                        st.markdown("**🚨 Friction Points:**")
-                        for item in fb.friction_points:
-                            st.markdown(f"- {item}")
+                        if fb.friction_points:
+                            st.markdown("**🚨 Friction Points:**")
+                            for item in fb.friction_points:
+                                st.markdown(f"- {item}")
 
-                    if fb.recommendations:
-                        st.markdown("**💡 Recommendations from this Persona:**")
-                        for item in fb.recommendations:
-                            st.markdown(f"- {item}")
+                        if fb.recommendations:
+                            st.markdown("**💡 Recommendations from this Persona:**")
+                            for item in fb.recommendations:
+                                st.markdown(f"- {item}")
 
 
 # -----------------------------------------------------------------------------

@@ -12,12 +12,14 @@ from src.simulacra.database import (
     save_campaign,
     save_feedback,
     save_persona,
+    save_quantix_feedback,
     save_session,
     save_telemetry_event,
     save_uat_report,
 )
 from src.simulacra.feedback import FeedbackEngine
 from src.simulacra.mock_app import MockAppServer
+from src.simulacra.quantix_feedback_form import generate_quantix_feedback
 from src.simulacra.models import (
     CampaignMission,
     Emotion,
@@ -114,6 +116,10 @@ class SimulationRunner:
             )
             all_feedbacks.append(feedback)
             save_feedback(feedback, database_path=self.database_path)
+
+            # Generate and persist detailed Quantix Google Form survey
+            quantix_form = generate_quantix_feedback(persona, metrics, events)
+            save_quantix_feedback(quantix_form, database_path=self.database_path)
 
             if on_session_complete:
                 on_session_complete(metrics, feedback)

@@ -239,8 +239,11 @@ class ReportGenerator:
         sessions: list[SessionMetrics],
         feedbacks: list[PersonaFeedback],
         telemetry: list[TelemetryEvent],
+        quantix_forms: list[Any] | None = None,
+        **kwargs: Any,
     ) -> bytes:
         """Generate structured multi-tab Excel workbook for QA and product teams."""
+        forms_to_export = quantix_forms or kwargs.get("quantix_feedbacks") or []
         output = io.BytesIO()
         with pd.ExcelWriter(output, engine="openpyxl") as writer:
             # Sheet 1: Campaign Summary
@@ -271,5 +274,18 @@ class ReportGenerator:
             if telemetry:
                 tel_df = pd.DataFrame([e.model_dump() for e in telemetry])
                 tel_df.to_excel(writer, sheet_name="Telemetry", index=False)
+
+            # Sheet 5: Detailed Google Form Feedback
+            if forms_to_export:
+                gform_rows = []
+                for qf in forms_to_export:
+                    row = qf if isinstance(qf, dict) else qf.model_dump()
+                    # Flatten list values for Excel readability
+                    flat_row = {}
+                    for k, v in row.items():
+                        flat_row[k] = ", ".join(v) if isinstance(v, list) else v
+                    gform_rows.append(flat_row)
+                gform_df = pd.DataFrame(gform_rows)
+                gform_df.to_excel(writer, sheet_name="Google Form Feedback", index=False)
 
         return output.getvalue()

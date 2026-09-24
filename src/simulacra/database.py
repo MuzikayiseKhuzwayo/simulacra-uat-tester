@@ -138,6 +138,15 @@ def initialize_database(
                     report_markdown TEXT NOT NULL,
                     FOREIGN KEY(campaign_id) REFERENCES campaigns(campaign_id)
                 );
+                CREATE TABLE IF NOT EXISTS quantix_feedback_forms (
+                    form_id TEXT PRIMARY KEY,
+                    session_id TEXT NOT NULL UNIQUE,
+                    persona_id TEXT NOT NULL,
+                    persona_name TEXT NOT NULL,
+                    submitted_at TEXT NOT NULL,
+                    form_json TEXT NOT NULL,
+                    FOREIGN KEY(session_id) REFERENCES agent_sessions(session_id)
+                );
                 """
             )
 
@@ -564,6 +573,68 @@ def list_feedback_by_campaign(
                 )
             )
         return feedbacks
+
+
+def save_quantix_feedback(
+    form: Any,
+    database_path: Path = DEFAULT_SIMULACRA_DB_PATH,
+) -> None:
+    """Save or update Quantix detailed Google Form feedback."""
+    initialize_database(database_path)
+    with connect(database_path) as conn:
+        conn.execute(
+            """
+            INSERT OR REPLACE INTO quantix_feedback_forms (
+                form_id, session_id, persona_id, persona_name, submitted_at, form_json
+            ) VALUES (?, ?, ?, ?, ?, ?);
+            """,
+            (
+                form.form_id,
+                form.session_id,
+                form.persona_id,
+                form.persona_name,
+                form.submitted_at,
+                form.model_dump_json(),
+            ),
+        )
+
+
+def get_quantix_feedback(
+    session_id: str,
+    database_path: Path = DEFAULT_SIMULACRA_DB_PATH,
+) -> Any | None:
+    """Fetch parsed Quantix Google Form survey by session ID."""
+    from src.simulacra.quantix_feedback_form import QuantixFeedbackForm
+
+    initialize_database(database_path)
+    with connect(database_path) as conn:
+        row = conn.execute(
+            "SELECT form_json FROM quantix_feedback_forms WHERE session_id = ?;",
+            (session_id,),
+        ).fetchone()
+        if row:
+            return QuantixFeedbackForm.model_validate_json(row["form_json"])
+    return None
+
+
+def list_quantix_feedbacks_by_campaign(
+    campaign_id: str,
+    database_path: Path = DEFAULT_SIMULACRA_DB_PATH,
+) -> list[Any]:
+    """Fetch all Quantix Google Form surveys for a campaign."""
+    from src.simulacra.quantix_feedback_form import QuantixFeedbackForm
+
+    initialize_database(database_path)
+    with connect(database_path) as conn:
+        rows = conn.execute(
+            """
+            SELECT qf.form_json FROM quantix_feedback_forms qf
+            JOIN agent_sessions s ON qf.session_id = s.session_id
+            WHERE s.campaign_id = ?;
+            """,
+            (campaign_id,),
+        ).fetchall()
+        return [QuantixFeedbackForm.model_validate_json(r["form_json"]) for r in rows]
 
 
 def save_uat_report(

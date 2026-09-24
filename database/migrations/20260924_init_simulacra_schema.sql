@@ -97,14 +97,27 @@ CREATE TABLE IF NOT EXISTS uat_reports (
     FOREIGN KEY(campaign_id) REFERENCES campaigns(campaign_id)
 );
 
+CREATE TABLE IF NOT EXISTS quantix_feedback_forms (
+    form_id TEXT PRIMARY KEY,
+    session_id TEXT NOT NULL UNIQUE,
+    persona_id TEXT NOT NULL,
+    persona_name TEXT NOT NULL,
+    submitted_at TEXT NOT NULL,
+    form_json TEXT NOT NULL,
+    FOREIGN KEY(session_id) REFERENCES agent_sessions(session_id)
+);
+
 CREATE INDEX IF NOT EXISTS idx_sessions_campaign ON agent_sessions(campaign_id);
 CREATE INDEX IF NOT EXISTS idx_telemetry_session ON telemetry_events(session_id);
 CREATE INDEX IF NOT EXISTS idx_feedback_session ON session_feedback(session_id);
+CREATE INDEX IF NOT EXISTS idx_quantix_fb_session ON quantix_feedback_forms(session_id);
 
 -- rollback
+-- DROP INDEX IF EXISTS idx_quantix_fb_session;
 -- DROP INDEX IF EXISTS idx_feedback_session;
 -- DROP INDEX IF EXISTS idx_telemetry_session;
 -- DROP INDEX IF EXISTS idx_sessions_campaign;
+-- DROP TABLE IF EXISTS quantix_feedback_forms;
 -- DROP TABLE IF EXISTS uat_reports;
 -- DROP TABLE IF EXISTS session_feedback;
 -- DROP TABLE IF EXISTS telemetry_events;
