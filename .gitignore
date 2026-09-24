@@ -36,3 +36,6 @@ output/
 data/*.db
 data/*.db-shm
 data/*.db-wal
+data/screenshots/
+data/*.xlsx
+data/*.json

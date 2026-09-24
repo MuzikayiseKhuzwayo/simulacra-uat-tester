@@ -1,0 +1,77 @@
+"""Simulacra UAT — Autonomous Persona-Driven User Simulation Platform."""
+
+from src.simulacra.browser_agent import SimulatedUserAgent
+from src.simulacra.database import (
+    DEFAULT_SIMULACRA_DB_PATH,
+    get_campaign,
+    get_feedback_by_session,
+    get_persona,
+    get_session_telemetry,
+    get_uat_report,
+    initialize_database,
+    list_campaigns,
+    list_feedback_by_campaign,
+    list_sessions_by_campaign,
+    verify_live_datastore_write,
+)
+from src.simulacra.feedback import FeedbackEngine
+from src.simulacra.mock_app import MockAppServer
+from src.simulacra.models import (
+    ActionType,
+    CampaignMission,
+    CampaignSummary,
+    DeviceType,
+    Emotion,
+    ExitReason,
+    PatienceLevel,
+    Persona,
+    PersonaFeedback,
+    ReadingSpeed,
+    RiskTolerance,
+    SessionMetrics,
+    TechnicalSkill,
+    TelemetryEvent,
+    UATReport,
+)
+from src.simulacra.persona import generate_cohort, get_default_personas, get_persona_by_id, get_preset_personas
+from src.simulacra.planner import CognitivePlanner
+from src.simulacra.reporting import ReportGenerator
+from src.simulacra.runner import SimulationRunner
+
+__all__ = [
+    "SimulatedUserAgent",
+    "SimulationRunner",
+    "CognitivePlanner",
+    "FeedbackEngine",
+    "ReportGenerator",
+    "MockAppServer",
+    "Persona",
+    "CampaignMission",
+    "CampaignSummary",
+    "TelemetryEvent",
+    "SessionMetrics",
+    "PersonaFeedback",
+    "UATReport",
+    "ActionType",
+    "Emotion",
+    "ExitReason",
+    "TechnicalSkill",
+    "PatienceLevel",
+    "ReadingSpeed",
+    "RiskTolerance",
+    "DeviceType",
+    "get_preset_personas",
+    "get_default_personas",
+    "get_persona_by_id",
+    "generate_cohort",
+    "initialize_database",
+    "verify_live_datastore_write",
+    "get_campaign",
+    "list_campaigns",
+    "list_sessions_by_campaign",
+    "get_session_telemetry",
+    "get_feedback_by_session",
+    "list_feedback_by_campaign",
+    "get_uat_report",
+    "DEFAULT_SIMULACRA_DB_PATH",
+]
