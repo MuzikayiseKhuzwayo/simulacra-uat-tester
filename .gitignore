@@ -39,3 +39,4 @@ data/*.db-wal
 data/screenshots/
 data/*.xlsx
 data/*.json
+scratch/

@@ -234,10 +234,11 @@ class SimulatedUserAgent:
                 const classes = el.className || '';
                 let selector = id;
                 if (!selector) {
-                    if (tag === 'a' && href) {
+                    if (tag === 'a' && href && !href.startsWith('javascript') && href !== '#') {
                         selector = `a[href="${href}"]`;
                     } else if (text) {
-                        selector = `${tag}:has-text("${text.slice(0, 30)}")`;
+                        const cleanText = text.slice(0, 30).replace(/"/g, '\\"');
+                        selector = `${tag}:has-text("${cleanText}")`;
                     } else {
                         selector = `${tag}:nth-of-type(${idx + 1})`;
                     }

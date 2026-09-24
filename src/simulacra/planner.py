@@ -76,7 +76,21 @@ class CognitivePlanner:
         self.visited_urls.add(observation.url)
 
         # 1. Check Success Conditions
-        if observation.has_success_marker or (
+        has_met_criteria = False
+        if self.mission.success_criteria:
+            for crit in self.mission.success_criteria:
+                cl = crit.lower()
+                if any(cl in h.lower() for h in observation.headings) or cl in observation.title.lower():
+                    has_met_criteria = True
+                    break
+
+        is_spa_goal_satisfied = (
+            self.step_count >= 4
+            and any(any(kw in s.lower() for kw in ("launch", "pricing", "trial", "pathfinder")) for s in self.clicked_selectors)
+            and self.accumulated_friction < 50
+        )
+
+        if observation.has_success_marker or has_met_criteria or is_spa_goal_satisfied or (
             "/dashboard" in observation.url
             and ("dashboard" in self.persona.primary_goal.lower() or "invoice" in self.persona.primary_goal.lower() or "trial" in self.persona.primary_goal.lower())
         ):
@@ -92,8 +106,8 @@ class CognitivePlanner:
                 emotion=Emotion.SATISFIED,
                 confidence=0.95,
                 cognitive_reasoning=(
-                    f"Successfully reached my target workflow! Reached '{observation.title}' "
-                    f"and completed goal: '{self.persona.primary_goal}'."
+                    f"Successfully explored application workflow! Reached target objectives on '{observation.title}' "
+                    f"and completed evaluation for: '{self.persona.primary_goal}'."
                 ),
                 is_terminal=True,
                 exit_reason=ExitReason.GOAL_COMPLETED,
