@@ -1,11 +1,13 @@
-"""Ollama-backed agent services for TestScope AI."""
+"""Gemini 2.5-backed agent services for TestScope AI."""
 
 import os
 from pathlib import Path
+from typing import Any
 
 from dotenv import load_dotenv
-from ollama import ResponseError, chat
 from pydantic import ValidationError
+
+from src.config import get_gemini_api_key, get_gemini_client, get_gemini_model
 from src.schemas import (
     GeneratedTestCases,
     RequirementAnalysis,
@@ -67,60 +69,73 @@ def load_test_generation_prompt() -> str:
     return prompt
 
 
-def get_ollama_model() -> str:
-    """Return the configured local Ollama model."""
+# Backward compatibility alias
+get_ollama_model = get_gemini_model
 
-    load_dotenv()
 
-    return (
-        os.getenv("OLLAMA_MODEL", "qwen3:4b").strip()
-        or "qwen3:4b"
-    )
+def clean_gemini_schema(d: Any) -> Any:
+    """Recursively strip additionalProperties and invalid fields for Gemini API schema."""
+    if isinstance(d, dict):
+        new_d = {}
+        for k, v in d.items():
+            if k in ("additionalProperties", "additional_properties"):
+                continue
+            new_d[k] = clean_gemini_schema(v)
+        return new_d
+    elif isinstance(d, list):
+        return [clean_gemini_schema(item) for item in d]
+    return d
 
 
 def request_structured_analysis(
     user_message: str,
 ) -> RequirementAnalysis:
-    """Request and validate structured analysis from Ollama."""
+    """Request and validate structured analysis from Gemini 2.5."""
 
-    try:
-        response = chat(
-            model=get_ollama_model(),
-            messages=[
-                {
-                    "role": "system",
-                    "content": load_analysis_prompt(),
-                },
-                {
-                    "role": "user",
-                    "content": user_message,
-                },
-            ],
-            format=RequirementAnalysis.model_json_schema(),
-            options={"temperature": 0},
-            think=False,
+    client = get_gemini_client()
+    if not client:
+        raise AgentServiceError(
+            "GEMINI_API_KEY is not configured. Please set GEMINI_API_KEY in .env."
         )
 
-        response_content = response.message.content
+    try:
+        from google.genai import types
+
+        model_name = get_gemini_model()
+        system_instruction = load_analysis_prompt()
+        analysis_schema = clean_gemini_schema(RequirementAnalysis.model_json_schema())
+
+        response = client.models.generate_content(
+            model=model_name,
+            contents=user_message,
+            config=types.GenerateContentConfig(
+                system_instruction=system_instruction,
+                response_mime_type="application/json",
+                response_schema=analysis_schema,
+                temperature=0.0,
+            ),
+        )
+
+        response_content = response.text
 
         if not response_content:
             raise AgentServiceError(
-                "The local model returned an empty response."
+                "Gemini returned an empty response."
             )
 
         return RequirementAnalysis.model_validate_json(
             response_content
         )
 
-    except ResponseError as error:
-        raise AgentServiceError(
-            f"Ollama request failed: {error}"
-        ) from error
-
     except ValidationError as error:
         raise AgentServiceError(
-            "Ollama returned output that did not match the "
+            "Gemini returned output that did not match the "
             "RequirementAnalysis schema."
+        ) from error
+
+    except Exception as error:
+        raise AgentServiceError(
+            f"Gemini request failed: {error}"
         ) from error
 
 
@@ -139,47 +154,55 @@ def analyse_requirement(
 def request_structured_test_cases(
     user_message: str,
 ) -> GeneratedTestCases:
-    """Request and validate structured UAT test cases from Ollama."""
+    """Request and validate structured UAT test cases from Gemini 2.5."""
 
-    try:
-        response = chat(
-            model=get_ollama_model(),
-            messages=[
-                {
-                    "role": "system",
-                    "content": load_test_generation_prompt(),
-                },
-                {
-                    "role": "user",
-                    "content": user_message,
-                },
-            ],
-            format=GeneratedTestCases.model_json_schema(),
-            options={"temperature": 0},
-            think=False,
+    client = get_gemini_client()
+    if not client:
+        raise AgentServiceError(
+            "GEMINI_API_KEY is not configured. Please set GEMINI_API_KEY in .env."
         )
 
-        response_content = response.message.content
+    try:
+        from google.genai import types
+
+        model_name = get_gemini_model()
+        system_instruction = load_test_generation_prompt()
+        test_case_schema = clean_gemini_schema(GeneratedTestCases.model_json_schema())
+
+        response = client.models.generate_content(
+            model=model_name,
+            contents=user_message,
+            config=types.GenerateContentConfig(
+                system_instruction=system_instruction,
+                response_mime_type="application/json",
+                response_schema=test_case_schema,
+                temperature=0.0,
+            ),
+        )
+
+
+        response_content = response.text
 
         if not response_content:
             raise AgentServiceError(
-                "The local model returned an empty test-case response."
+                "Gemini returned an empty test-case response."
             )
 
         return GeneratedTestCases.model_validate_json(
             response_content
         )
 
-    except ResponseError as error:
-        raise AgentServiceError(
-            f"Ollama test-generation request failed: {error}"
-        ) from error
-
     except ValidationError as error:
         raise AgentServiceError(
-            "Ollama returned output that did not match the "
+            "Gemini returned output that did not match the "
             "GeneratedTestCases schema."
         ) from error
+
+    except Exception as error:
+        raise AgentServiceError(
+            f"Gemini test-generation request failed: {error}"
+        ) from error
+
 
 def correct_generated_test_cases(
     requirement: RequirementInput,

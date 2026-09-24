@@ -108,18 +108,27 @@ pip install -r requirements.txt
 playwright install chromium
 ```
 
-### 2. Launch the Streamlit Interactive Platform
+### 2. Launch the Next.js Enterprise UAT Platform (Recommended)
+
+Start both the **FastAPI Backend (port 8000)** and **Next.js 15 Web App (port 3000)** with one command:
 
 ```bash
-streamlit run app.py
+python run_dev.py
 ```
 
-Open `http://localhost:8501` to access:
-- **Simulation Studio**: Configure target URLs, pick cohorts, and run live agent simulations.
-- **Executive UAT Reports**: View scorecard KPIs, friction funnels, and download Excel/Markdown reports.
-- **User Sessions & Telemetry**: Step through cognitive streams, inner monologues, and screenshots.
-- **Persona UX Surveys**: Read verbatim quotes and SUS scorecards.
-- **TestPack Design Agent**: Generate deterministic test cases from acceptance criteria.
+- **Frontend**: [http://localhost:3000](http://localhost:3000) (Next.js 15, React 19, Tailwind CSS, SSE real-time streaming)
+- **Backend API Docs**: [http://127.0.0.1:8000/docs](http://127.0.0.1:8000/docs) (FastAPI Swagger UI)
+
+You can also run them independently:
+```bash
+# Terminal 1: Backend
+python run_api.py
+
+# Terminal 2: Frontend
+cd frontend && npm run dev
+```
+
+*(Note: The legacy Streamlit prototype is still available via `streamlit run app.py` on port 8501).*
 
 ### 3. Run Headless Simulation via CLI
 
@@ -139,7 +148,7 @@ python -m src.simulacra.cli --url "https://my-app.com" --goal "Browse catalog an
 pytest -v
 ```
 
-96 automated tests with zero warnings covering Pydantic contracts, database transactions, cognitive planning, Playwright browser interactions, and report generation.
+99 automated tests with zero warnings covering Pydantic contracts, FastAPI endpoints, SQLite transactions, cognitive planning, Playwright browser interactions, and report generation.
 
 ---
 

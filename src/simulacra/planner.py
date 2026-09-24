@@ -5,7 +5,13 @@ and inner-monologue reasoning based on synthetic persona profiles.
 """
 
 from dataclasses import dataclass
+import os
 from typing import Any
+import logging
+from pydantic import BaseModel, Field
+
+
+from src.config import get_gemini_client, get_gemini_model
 from src.simulacra.models import (
     ActionType,
     CampaignMission,
@@ -17,6 +23,25 @@ from src.simulacra.models import (
     TechnicalSkill,
     TelemetryEvent,
 )
+
+logger = logging.getLogger(__name__)
+
+
+class GeminiStepDecision(BaseModel):
+    """Pydantic schema for Gemini 2.5 structured step decision."""
+
+    action_type: ActionType
+    target_selector: str | None = None
+    target_text: str | None = None
+    input_value: str | None = None
+    scroll_amount: int = 0
+    hesitation_ms: int = 500
+    rage_clicks: int = 0
+    emotion: Emotion = Emotion.NEUTRAL
+    confidence: float = Field(default=0.7, ge=0.0, le=1.0)
+    cognitive_reasoning: str
+    is_terminal: bool = False
+    exit_reason: ExitReason | None = None
 
 
 @dataclass
@@ -57,14 +82,22 @@ class PlannedDecision:
 class CognitivePlanner:
     """Simulates realistic user cognition, intent, hesitation, and emotional shifts."""
 
-    def __init__(self, persona: Persona, mission: CampaignMission) -> None:
+    def __init__(
+        self,
+        persona: Persona,
+        mission: CampaignMission,
+        use_gemini: bool = True,
+    ) -> None:
         self.persona = persona
         self.mission = mission
+        env_flag = os.getenv("SIMULACRA_USE_GEMINI", "true").lower() in ("true", "1")
+        self.use_gemini = use_gemini and env_flag
         self.current_emotion = Emotion.NEUTRAL
         self.accumulated_friction = 0.0
         self.visited_urls: set[str] = set()
         self.clicked_selectors: set[str] = set()
         self.step_count = 0
+
 
     def evaluate_step(
         self,
@@ -75,6 +108,171 @@ class CognitivePlanner:
         self.step_count += 1
         self.visited_urls.add(observation.url)
 
+        # Attempt Gemini 2.5 cognitive reasoning if enabled and configured
+        if self.use_gemini:
+            client = get_gemini_client()
+            if client:
+                try:
+                    decision = self._evaluate_step_gemini(observation, history, client)
+                    if decision:
+                        return decision
+                except Exception as exc:
+                    logger.warning(
+                        f"Gemini 2.5 cognitive planning failed: {exc}. Falling back to heuristic planner."
+                    )
+
+        return self._evaluate_step_heuristic(observation, history)
+
+    def _evaluate_step_gemini(
+        self,
+        observation: PageObservation,
+        history: list[TelemetryEvent],
+        client: Any,
+    ) -> PlannedDecision | None:
+        """Call Gemini 2.5 to simulate genuine persona cognition and intent."""
+        from google.genai import types
+
+        model_name = get_gemini_model()
+
+        # Format elements concisely
+        elements_summary: list[str] = []
+        for el in observation.interactive_elements[:30]:
+            sel = el.get("selector", "")
+            if sel in self.clicked_selectors:
+                continue
+            txt = el.get("text", "")
+            tag = el.get("tag", "")
+            href = el.get("href", "")
+            elements_summary.append(
+                f"- Tag: <{tag}>, Text: '{txt}', Selector: '{sel}'"
+                + (f", Href: '{href}'" if href else "")
+            )
+
+        inputs_summary: list[str] = []
+        for inp in observation.form_inputs:
+            inputs_summary.append(
+                f"- Field: '{inp.get('name')}', Type: '{inp.get('type')}', Selector: '{inp.get('selector')}', Filled: {inp.get('filled')}"
+            )
+
+        history_summary: list[str] = []
+        for evt in history[-4:]:
+            history_summary.append(
+                f"Step {evt.step_number}: {evt.action_type.value.upper()} on '{evt.target_text or evt.target_element or evt.page_url}' | Emotion: {evt.emotion.value} | Reason: \"{evt.cognitive_reasoning}\""
+            )
+
+        prompt = f"""
+You are the cognitive mind and senses of a real human user autonomously testing a web application.
+Completely embody this persona's thoughts, emotions, technical vocabulary, impatience, and biases.
+Do NOT speak like an AI or an assistant. Speak strictly in the authentic first person ("I ...") as the user.
+
+PERSONA PROFILE:
+- Name: {self.persona.name}
+- Role & Background: {self.persona.role} (Age {self.persona.age})
+- Technical Skill Level: {self.persona.technical_skill.value}
+- Patience Level: {self.persona.patience.value}
+- Risk Tolerance: {self.persona.risk_tolerance.value}
+- Reading Speed: {self.persona.reading_speed.value}
+- Attention Span: {self.persona.attention_span.value}
+- Behavioral Biases: {', '.join(self.persona.biases)}
+- Personal Objective: {self.persona.primary_goal}
+
+CAMPAIGN MISSION:
+- Target Application: {self.mission.target_url}
+- Campaign Goal: {self.mission.primary_goal}
+- Success Criteria: {self.mission.success_criteria}
+- Progress: Step {self.step_count} of max {self.mission.max_steps}
+
+CURRENT PAGE OBSERVATION:
+- Current URL: {observation.url}
+- Page Title: {observation.title}
+- Main Headings: {observation.headings[:6]}
+- Interactive Elements (Buttons, Links) on Page:
+{chr(10).join(elements_summary) if elements_summary else "  (None detected or already clicked)"}
+- Form Inputs on Page:
+{chr(10).join(inputs_summary) if inputs_summary else "  (No form inputs on page)"}
+- Success Banner Present: {observation.has_success_marker}
+- Error Banner Present: {observation.has_error_marker} (Error: {observation.error_text or 'None'})
+- Scroll Position: {observation.scroll_y} px / Total Height: {observation.page_height} px
+
+RECENT SESSION HISTORY:
+{chr(10).join(history_summary) if history_summary else "  (Initial landing on the application)"}
+
+DECISION INSTRUCTIONS:
+1. 'cognitive_reasoning': Inner monologue in authentic first-person voice ("I ..."). Reflect your persona's biases, technical skill, and emotional state right now.
+2. 'action_type':
+   - 'click': Pick an element from the interactive elements list. Set 'target_selector' and 'target_text'.
+   - 'fill_input': Fill an unfilled input. Set 'target_selector', 'target_text', and realistic 'input_value'.
+   - 'submit_form': If form inputs are completed, click the submit button. Set 'target_selector'.
+   - 'scroll_down': Scroll down to view content below the fold. Set 'scroll_amount' (300 to 600).
+   - 'scroll_up': Scroll back up. Set 'scroll_amount'.
+   - 'rage_click': If frustrated by an unresponsive element or misleading button. Set 'rage_clicks' (3).
+   - 'hesitate': If analyzing complex text or feeling confused. Set 'hesitation_ms' (800 to 1500).
+   - 'complete_goal': If your objective/success criteria has been achieved. Set 'is_terminal'=True, 'exit_reason'='goal_completed'.
+   - 'abandon': If patience is exhausted or trapped. Set 'is_terminal'=True, 'exit_reason'='patience_exhausted'.
+3. 'emotion': 'neutral', 'curious', 'confident', 'hesitant', 'confused', 'frustrated', 'delighted', 'satisfied', 'annoyed', or 'abandoned'.
+4. 'confidence': Between 0.1 and 1.0.
+5. 'hesitation_ms': Realistic reading/thinking delay in milliseconds based on {self.persona.reading_speed.value} reading speed.
+""".strip()
+
+        resp = client.models.generate_content(
+            model=model_name,
+            contents=prompt,
+            config=types.GenerateContentConfig(
+                response_mime_type="application/json",
+                response_schema=GeminiStepDecision,
+                temperature=0.3,
+            ),
+        )
+
+        if not resp.text:
+            return None
+
+        gemini_dec = GeminiStepDecision.model_validate_json(resp.text)
+
+        # Update cognitive tracking
+        if gemini_dec.target_selector:
+            self.clicked_selectors.add(gemini_dec.target_selector)
+
+        self.current_emotion = gemini_dec.emotion
+        if gemini_dec.action_type == ActionType.RAGE_CLICK:
+            self.accumulated_friction += 25
+        elif gemini_dec.emotion in (Emotion.FRUSTRATED, Emotion.CONFUSED):
+            self.accumulated_friction += 10
+        elif gemini_dec.emotion in (Emotion.HESITANT, Emotion.ANNOYED):
+            self.accumulated_friction += 5
+
+        # Check for form value generation fallback if LLM chose fill_input without value
+        input_val = gemini_dec.input_value
+        if gemini_dec.action_type == ActionType.FILL_INPUT and not input_val:
+            input_val = self._generate_form_value(
+                gemini_dec.target_text or "input", "text"
+            )
+
+        hesitation = gemini_dec.hesitation_ms
+        if hesitation <= 0:
+            hesitation = self._calculate_hesitation(base_ms=500)
+
+        return PlannedDecision(
+            action_type=gemini_dec.action_type,
+            target_selector=gemini_dec.target_selector,
+            target_text=gemini_dec.target_text,
+            input_value=input_val,
+            scroll_amount=gemini_dec.scroll_amount,
+            hesitation_ms=hesitation,
+            rage_clicks=gemini_dec.rage_clicks,
+            emotion=gemini_dec.emotion,
+            confidence=gemini_dec.confidence,
+            cognitive_reasoning=gemini_dec.cognitive_reasoning,
+            is_terminal=gemini_dec.is_terminal,
+            exit_reason=gemini_dec.exit_reason,
+        )
+
+    def _evaluate_step_heuristic(
+        self,
+        observation: PageObservation,
+        history: list[TelemetryEvent],
+    ) -> PlannedDecision:
+        """Deterministic heuristic evaluation used as robust fallback."""
         # 1. Check Success Conditions
         has_met_criteria = False
         if self.mission.success_criteria:
@@ -83,6 +281,7 @@ class CognitivePlanner:
                 if any(cl in h.lower() for h in observation.headings) or cl in observation.title.lower():
                     has_met_criteria = True
                     break
+
 
         is_spa_goal_satisfied = (
             self.step_count >= 4

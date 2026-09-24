@@ -25,7 +25,8 @@ The first version uses a **bounded two-stage agent workflow**. It does not requi
 | Agent design | One UAT specialist persona used across two controlled runs | Keeps the POC understandable while supporting analysis before generation |
 | Stage 1 | Requirement analysis | Identifies uncertainty before test cases are created |
 | Stage 2 | Test generation | Uses requirement data plus confirmed answers and approved assumptions |
-| AI framework | OpenAI Agents SDK for Python | Supports agent instructions, typed outputs, guardrails, runtime state and tracing |
+| AI framework | Google GenAI SDK (Gemini 2.5) | Supports agent instructions, typed outputs, guardrails, runtime state and tracing |
+
 | Output control | Pydantic models through the agent `output_type` | Produces predictable Python objects rather than unstructured text |
 | Workflow control | Deterministic Python controller | Keeps state transitions and business approvals outside model control |
 | Validation | Python rule engine | Ensures coverage calculations and structural checks are reproducible |

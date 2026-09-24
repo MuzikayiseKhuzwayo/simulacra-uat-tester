@@ -37,13 +37,15 @@ class SimulatedUserAgent:
         mission: CampaignMission,
         campaign_id: str,
         on_event: Callable[[TelemetryEvent], None] | None = None,
+        use_gemini: bool = True,
     ) -> None:
         self.persona = persona
         self.mission = mission
         self.campaign_id = campaign_id
         self.session_id = f"sess_{uuid.uuid4().hex[:12]}"
         self.on_event = on_event
-        self.planner = CognitivePlanner(persona, mission)
+        self.planner = CognitivePlanner(persona, mission, use_gemini=use_gemini)
+
         self.telemetry_history: list[TelemetryEvent] = []
         self.pages_visited: set[str] = set()
         self.total_clicks = 0

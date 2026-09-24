@@ -4,7 +4,13 @@ Generates structured post-session UX surveys, SUS metrics, CES effort scores,
 verbatim persona critiques, and targeted usability recommendations.
 """
 
+import os
 import uuid
+import logging
+from typing import Any
+from pydantic import BaseModel, Field
+
+from src.config import get_gemini_client, get_gemini_model
 from src.simulacra.models import (
     ActionType,
     ExitReason,
@@ -16,6 +22,19 @@ from src.simulacra.models import (
     TechnicalSkill,
     TelemetryEvent,
 )
+
+logger = logging.getLogger(__name__)
+
+
+class GeminiFeedbackSynthesis(BaseModel):
+    """Pydantic schema for Gemini 2.5 feedback synthesis."""
+
+    verbatim_quote: str
+    sentiment_summary: str
+    what_worked_well: list[str] = Field(default_factory=list)
+    confusing_elements: list[str] = Field(default_factory=list)
+    friction_points: list[str] = Field(default_factory=list)
+    recommendations: list[str] = Field(default_factory=list)
 
 
 class FeedbackEngine:
@@ -65,10 +84,45 @@ class FeedbackEngine:
             overall_rating = 1
             nps_rating = 1
 
-        # 4. Extract confusing elements & friction points from telemetry
+        # 4. Attempt Gemini 2.5 qualitative feedback generation
+        use_gemini = os.getenv("SIMULACRA_USE_GEMINI", "true").lower() in ("true", "1")
+        if use_gemini:
+            client = get_gemini_client()
+            if client:
+                try:
+                    llm_data = cls._generate_gemini_feedback(
+                        persona=persona,
+                        metrics=metrics,
+                        telemetry=telemetry,
+                        sus_score=sus_score,
+                        client=client,
+                    )
+                    if llm_data:
+                        return PersonaFeedback(
+                            feedback_id=f"fb_{uuid.uuid4().hex[:12]}",
+                            session_id=metrics.session_id,
+                            persona_id=persona.persona_id,
+                            persona_name=persona.name,
+                            overall_rating=overall_rating,
+                            sus_score=sus_score,
+                            ces_score=ces_score,
+                            nps_rating=nps_rating,
+                            sentiment_summary=llm_data.sentiment_summary,
+                            what_worked_well=llm_data.what_worked_well,
+                            confusing_elements=llm_data.confusing_elements,
+                            friction_points=llm_data.friction_points,
+                            verbatim_quote=llm_data.verbatim_quote,
+                            recommendations=llm_data.recommendations,
+                        )
+                except Exception as exc:
+                    logger.warning(
+                        f"Gemini 2.5 feedback synthesis failed: {exc}. Falling back to heuristic feedback."
+                    )
+        # 5. Fallback Heuristic Generation: Extract confusing elements & friction points
         confusing_elements: list[str] = []
         friction_points: list[str] = []
         what_worked_well: list[str] = []
+
 
         for evt in telemetry:
             if evt.action_type == ActionType.RAGE_CLICK:
@@ -185,3 +239,65 @@ class FeedbackEngine:
             f"\"The experience was okay, but could be clearer. There were moments where I had to stop and guess "
             f"what the next step was. With some guidance and clearer labels, it would be much better.\" — {persona.name} ({persona.role})"
         )
+
+    @classmethod
+    def _generate_gemini_feedback(
+        cls,
+        persona: Persona,
+        metrics: SessionMetrics,
+        telemetry: list[TelemetryEvent],
+        sus_score: float,
+        client: Any,
+    ) -> GeminiFeedbackSynthesis | None:
+        """Use Gemini 2.5 to synthesize authentic persona post-session critique."""
+        from google.genai import types
+
+        model_name = get_gemini_model()
+
+        events_summary = []
+        for evt in telemetry:
+            events_summary.append(
+                f"- Step {evt.step_number}: {evt.action_type.value.upper()} on '{evt.target_text or evt.target_element or evt.page_url}' | Emotion: {evt.emotion.value} | Reason: \"{evt.cognitive_reasoning}\""
+            )
+
+        prompt = f"""
+You are synthesizing post-testing UX feedback for a web application as the user {persona.name} ({persona.role}, age {persona.age}).
+Embody this persona's voice, communication style, technical background ({persona.technical_skill.value}), and biases ({', '.join(persona.biases)}).
+
+SESSION TELEMETRY:
+- Goal: {persona.primary_goal}
+- Duration: {metrics.duration_seconds}s across {metrics.total_steps} steps
+- Task Success: {metrics.task_success}
+- Exit Reason: {metrics.exit_reason.value}
+- Rage Clicks: {metrics.rage_clicks_total}
+- Friction Score: {metrics.friction_score:.1f} / 100
+- Usability Score (SUS): {sus_score:.1f} / 100
+- Final Sentiment: {metrics.final_sentiment.value}
+
+JOURNEY TIMELINE:
+{chr(10).join(events_summary) if events_summary else "  (No interaction events recorded)"}
+
+Generate realistic, authentic persona feedback:
+1. 'verbatim_quote': 2-3 sentences in first person directly quoting {persona.name}. Reference specific things encountered. Conclude with '— {persona.name} ({persona.role})'.
+2. 'sentiment_summary': Single executive sentence summarizing overall impression.
+3. 'what_worked_well': 2-3 bullet items of what was clear or effective.
+4. 'confusing_elements': 1-3 bullet items of confusing, ambiguous, or misleading elements encountered.
+5. 'friction_points': 1-3 bullet items describing friction or hesitation moments.
+6. 'recommendations': 2-3 specific, actionable recommendations from this persona's perspective.
+""".strip()
+
+        resp = client.models.generate_content(
+            model=model_name,
+            contents=prompt,
+            config=types.GenerateContentConfig(
+                response_mime_type="application/json",
+                response_schema=GeminiFeedbackSynthesis,
+                temperature=0.3,
+            ),
+        )
+
+        if not resp.text:
+            return None
+
+        return GeminiFeedbackSynthesis.model_validate_json(resp.text)
+

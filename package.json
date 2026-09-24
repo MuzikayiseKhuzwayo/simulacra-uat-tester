@@ -1,0 +1,17 @@
+{
+  "name": "simulacra-uat-tester",
+  "version": "2.5.0",
+  "private": true,
+  "description": "Autonomous Persona-Driven User Simulation & Testing Platform",
+  "scripts": {
+    "dev": "concurrently -n \"BACKEND,FRONTEND\" -c \"cyan.bold,magenta.bold\" \"python run_api.py\" \"npm run dev --prefix frontend\"",
+    "dev:backend": "python run_api.py",
+    "dev:frontend": "npm run dev --prefix frontend",
+    "build": "npm run build --prefix frontend",
+    "start": "npm run start --prefix frontend",
+    "test": "pytest -v"
+  },
+  "devDependencies": {
+    "concurrently": "^9.1.2"
+  }
+}
